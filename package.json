@@ -1,0 +1,34 @@
+{
+  "name": "leetlens",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build --config vite.config.ts && vite build --config vite.content.config.ts",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "node tests/browser-smoke.mjs && node tests/stream-smoke.mjs"
+  },
+  "dependencies": {
+    "@solidjs/router": "^0.15.4",
+    "dompurify": "^3.2.6",
+    "marked": "^16.1.2",
+    "solid-js": "^1.9.9"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.326",
+    "@types/dompurify": "^3.2.0",
+    "@types/node": "^24.3.0",
+    "@typescript-eslint/eslint-plugin": "^8.42.0",
+    "@typescript-eslint/parser": "^8.42.0",
+    "eslint": "^9.34.0",
+    "playwright": "^1.62.1",
+    "typescript": "^5.9.2",
+    "vite": "^7.1.4",
+    "vite-plugin-solid": "^2.11.8",
+    "vitest": "^3.2.4"
+  }
+}

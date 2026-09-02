@@ -1,0 +1,4 @@
+{
+  "compilerOptions": { "target": "ES2022", "useDefineForClassFields": true, "module": "ESNext", "moduleResolution": "Bundler", "strict": true, "jsx": "preserve", "jsxImportSource": "solid-js", "resolveJsonModule": true, "isolatedModules": true, "noEmit": true, "types": ["chrome", "vite/client"] },
+  "include": ["src", "vite.config.ts", "vite.content.config.ts", "tests", "src/vite-env.d.ts"]
+}
