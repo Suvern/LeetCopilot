@@ -1,5 +1,5 @@
 import type { ChatMessage, Settings } from './types';
-export const DEFAULT_SETTINGS: Settings = { apiKey: __LEETLENS_DEV_API_KEY__, model: 'deepseek-v4-flash', theme: 'auto' };
+export const DEFAULT_SETTINGS: Settings = { apiKey: __LEETLENS_DEV_API_KEY__, model: 'deepseek-v4-flash', theme: 'auto', hideNativeLeet: false };
 const settingsKey = 'leetlens:settings';
 const historyKey = (id: string) => `leetlens:history:${id}`;
 export async function getSettings(): Promise<Settings> { const value = await chrome.storage.local.get(settingsKey); return { ...DEFAULT_SETTINGS, ...(value[settingsKey] ?? {}) }; }
