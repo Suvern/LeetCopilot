@@ -4,6 +4,7 @@ import DOMPurify from 'dompurify';
 import { marked } from 'marked';
 import { clearHistory, getHistory, getSettings, saveHistory } from '../shared/storage';
 import { cleanText, extractCodeAction, normalizeLanguage, problemId } from '../shared/parse';
+import { LeetLensLogo } from '../shared/Logo';
 import type { CodeAction } from '../shared/parse';
 import type { BackgroundEvent, ChatMessage, ProblemContext, Theme } from '../shared/types';
 import './style.css';
@@ -198,15 +199,17 @@ function App() {
   const reset = async () => { setMessages([]); setDraft(''); await clearHistory(context().id); };
 
   return <aside class={`leetlens ${open() ? 'is-open' : 'is-collapsed'}`} data-theme={theme()} style={{ width: open() ? `${width()}px` : undefined }} data-testid="leetlens-panel">
+    <div class="leetlens-tabset flexlayout__tabset">
     <div class="panel-content" aria-hidden={!open()}>
       <div class="resize" onMouseDown={resize} />
-      <header class="panel-header"><div class="identity"><div class="logo">L</div><div><strong>LeetLens</strong><span>{context().title}</span></div></div><div class="header-actions"><button onClick={() => void reset()} title="新建对话" aria-label="新建对话">+</button><button onClick={() => setOpen(false)} title="收起面板" aria-label="收起面板">&#x203A;</button></div></header>
+      <header class="panel-header flexlayout__tabset_header"><div class="active-tab flexlayout__tab_button flexlayout__tab_button--selected"><LeetLensLogo class="logo" /><strong>LeetLens</strong></div><span class="problem-title">{context().title}</span><div class="header-actions"><button onClick={() => void reset()} title="新建对话" aria-label="新建对话">+</button><button onClick={() => setOpen(false)} title="收起面板" aria-label="收起面板">&#x203A;</button></div></header>
       <div class="shortcut-row"><For each={shortcuts}>{(item) => <button disabled={busy()} onClick={() => void send(item)}>{item}</button>}</For></div>
-      <div class="conversation" ref={scrollArea!}><Show when={!messages().length}><div class="empty"><div class="empty-icon">L</div><h2>从这道题开始</h2><p>我已读取题目与当前编辑器语言。你可以提问，或选择上方操作。</p></div></Show><For each={messages()}>{(message) => { const action = () => extractCodeAction(message.content); return <article class={`message ${message.role}`}><div class="message-label">{message.role === 'user' ? '你' : 'LeetLens'}</div><Show when={message.role === 'assistant'} fallback={<p>{message.content}</p>}><div class="answer" innerHTML={markdown(message.content || (busy() ? '正在思考...' : ''))} /><Show when={action()}>{(currentAction) => <div class="code-actions"><span class="code-kind">{actionLabel(currentAction())}</span><button onClick={() => void applyCode(currentAction())}>应用代码</button></div>}</Show><button class="copy" onClick={() => void copy(message.content)} title="复制回答">复制</button></Show></article>; }}</For></div>
+      <div class="conversation" ref={scrollArea!}><Show when={!messages().length}><div class="empty"><LeetLensLogo class="empty-icon" /><h2>从这道题开始</h2><p>我已读取题目与当前编辑器语言。你可以提问，或选择上方操作。</p></div></Show><For each={messages()}>{(message) => { const action = () => extractCodeAction(message.content); return <article class={`message ${message.role}`}><div class="message-label">{message.role === 'user' ? '你' : 'LeetLens'}</div><Show when={message.role === 'assistant'} fallback={<p>{message.content}</p>}><div class="answer" innerHTML={markdown(message.content || (busy() ? '正在思考...' : ''))} /><Show when={action()}>{(currentAction) => <div class="code-actions"><span class="code-kind">{actionLabel(currentAction())}</span><button onClick={() => void applyCode(currentAction())}>应用代码</button></div>}</Show><button class="copy" onClick={() => void copy(message.content)} title="复制回答">复制</button></Show></article>; }}</For></div>
       <Show when={error()}><div class="error"><span>{error()}</span><button onClick={() => setError('')}>关闭</button></div></Show>
       <form class="composer" onSubmit={(event) => { event.preventDefault(); void send(); }}><textarea value={draft()} onInput={(event) => setDraft(event.currentTarget.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void send(); } }} placeholder="询问题目思路、检查代码或要求完整解法..." rows="3" disabled={busy()} /><div><span>{busy() ? '正在生成' : 'Enter 发送'}</span><button type="button" class="clear" disabled={!messages().length || busy()} onClick={() => void reset()} title="清空当前对话" aria-label="清空当前对话">清空</button><Show when={busy()} fallback={<button type="submit" disabled={!draft().trim()}>发送</button>}><button type="button" class="stop" onClick={cancel}>停止</button></Show></div></form>
     </div>
-    <Show when={!open()}><button class="reopen" onClick={() => setOpen(true)} title="打开 LeetLens" aria-label="打开 LeetLens">AI</button></Show>
+    <Show when={!open()}><button class="reopen" onClick={() => setOpen(true)} title="打开 LeetLens" aria-label="打开 LeetLens"><LeetLensLogo class="reopen-logo" /></button></Show>
+    </div>
   </aside>;
 }
 
