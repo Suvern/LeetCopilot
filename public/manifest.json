@@ -4,9 +4,10 @@
   "version": "0.1.0",
   "description": "在 leetcode.cn 题目页面提供中文 AI 编程助手。",
   "permissions": ["storage", "activeTab", "scripting"],
-  "host_permissions": ["https://leetcode.cn/*", "https://api.deepseek.com/*"],
+  "host_permissions": ["https://leetcode.cn/*", "https://api.deepseek.com/*", "https://dashscope.aliyuncs.com/*"],
   "action": { "default_title": "打开 LeetLens 设置", "default_popup": "src/popup/index.html", "default_icon": { "16": "icon-16.png", "32": "icon-32.png", "48": "icon-48.png", "128": "icon-128.png" } },
   "background": { "service_worker": "assets/background.js", "type": "module" },
   "content_scripts": [{ "matches": ["https://leetcode.cn/problems/*"], "js": ["assets/content.js"], "css": ["assets/content.css"], "run_at": "document_idle" }],
+  "web_accessible_resources": [{ "resources": ["leetlens-logo.png"], "matches": ["https://leetcode.cn/*"] }],
   "icons": { "16": "icon-16.png", "32": "icon-32.png", "48": "icon-48.png", "128": "icon-128.png" }
 }

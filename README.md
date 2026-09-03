@@ -1,12 +1,12 @@
 # LeetLens
 
-LeetLens is an open-source Chrome extension that adds a Chinese AI programming workspace to `leetcode.cn` problem pages. It uses the official DeepSeek API to discuss approaches, review the current code, explain solutions, optimize complexity, and generate complete solutions in C, C++, Java, JavaScript, or Python.
+LeetLens is an open-source Chrome extension that adds a Chinese AI programming workspace to `leetcode.cn` problem pages. It supports the official DeepSeek and Qwen APIs to discuss approaches, review the current code, explain solutions, optimize complexity, and generate complete solutions in C, C++, Java, JavaScript, or Python.
 
 ## Features
 
 - In-page conversation panel beside the LeetCode editor
 - Automatic problem context and selected-language context
-- Streaming DeepSeek responses with Markdown and code-copy support
+- Streaming DeepSeek and Qwen responses with Markdown and code-copy support
 - Presets for hints, approach analysis, code review, explanation, optimization, and full solutions
 - Per-problem local history, capped at the latest 30 messages
 - Resizable, collapsible panel with light/dark theme support
@@ -17,9 +17,9 @@ LeetLens is an open-source Chrome extension that adds a Chinese AI programming w
 1. Install Node.js 20 or newer.
 2. Run `npm install` and `npm run build`.
 3. Open `chrome://extensions`, enable Developer mode, choose **Load unpacked**, and select the `dist` directory.
-4. Open the extension popup on a `leetcode.cn` problem page and enter your DeepSeek API key and model name.
+4. Open the extension popup on a `leetcode.cn` problem page, select a platform, and enter its API key and model name.
 
-The default model is `deepseek-chat`. The extension also accepts other DeepSeek model names supported by your account.
+The default models are `deepseek-v4-flash` for DeepSeek and `qwen-plus` for Qwen. The extension also accepts other model names supported by your account.
 
 ## Development
 
@@ -35,7 +35,7 @@ The local `.env` file is ignored by Git. For this temporary development build, t
 
 ## Privacy and security
 
-Your API key is stored in Chrome local extension storage and sent directly to `api.deepseek.com` when you send a request. In the temporary local development build, the ignored `.env` key is also embedded as an initial default. Problem text, editor code, and conversation messages are sent to DeepSeek as request context. LeetLens has no backend and does not collect analytics. Review DeepSeek's current terms and privacy policy before using sensitive code. Do not share your key or commit it to source control.
+Your API keys are stored in Chrome local extension storage and sent directly to the selected provider when you send a request. In the temporary local development build, the ignored `.env` DeepSeek key is also embedded as an initial default. Problem text, editor code, and conversation messages are sent to the selected provider as request context. LeetLens has no backend and does not collect analytics. Review the selected provider's current terms and privacy policy before using sensitive code. Do not share your key or commit it to source control.
 
 ## Limitations
 

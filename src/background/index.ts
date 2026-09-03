@@ -1,8 +1,12 @@
-import { getSettings } from '../shared/storage';
+import { appendErrorLog, getSettings } from '../shared/storage';
 import { systemPrompt, userPrompt } from '../shared/prompt';
-import type { BackgroundRequest, BackgroundEvent } from '../shared/types';
+import type { BackgroundRequest, BackgroundEvent, Provider } from '../shared/types';
 
 const controllers = new Map<string, AbortController>();
+const providerConfig: Record<Provider, { label: string; endpoint: string; defaultModel: string }> = {
+  deepseek: { label: 'DeepSeek', endpoint: 'https://api.deepseek.com/chat/completions', defaultModel: 'deepseek-v4-flash' },
+  qwen: { label: '千问', endpoint: 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions', defaultModel: 'qwen-plus' },
+};
 
 chrome.runtime.onMessage.addListener((request: BackgroundRequest, sender, sendResponse) => {
   if (request.type === 'cancel') { controllers.get(request.requestId)?.abort(); controllers.delete(request.requestId); return; }
@@ -75,20 +79,27 @@ async function send(event: BackgroundEvent, tabId?: number) {
   if (tabId !== undefined) await chrome.tabs.sendMessage(tabId, event).catch(() => undefined);
 }
 
+async function reportError(settings: Awaited<ReturnType<typeof getSettings>>, requestId: string, tabId: number | undefined, message: string) {
+  const safeMessage = settings.apiKey.trim() ? message.replaceAll(settings.apiKey.trim(), '[已隐藏 API Key]') : message;
+  await appendErrorLog({ provider: settings.provider, message: safeMessage }).catch(() => undefined);
+  await send({ type: 'error', requestId, message: safeMessage }, tabId);
+}
+
 async function streamChat(request: Extract<BackgroundRequest, { type: 'chat' }>, tabId?: number) {
   const settings = await getSettings();
-  if (!settings.apiKey.trim()) return send({ type: 'error', requestId: request.requestId, message: '请先在 LeetLens 设置中填写 DeepSeek API Key。' }, tabId);
+  const config = providerConfig[settings.provider];
+  if (!settings.apiKey.trim()) return reportError(settings, request.requestId, tabId, `请先在 LeetLens 设置中填写${config.label} API Key。`);
   const controller = new AbortController(); controllers.set(request.requestId, controller);
   try {
-    const response = await fetch('https://api.deepseek.com/chat/completions', { method: 'POST', signal: controller.signal, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${settings.apiKey.trim()}` }, body: JSON.stringify({ model: settings.model.trim() || 'deepseek-v4-flash', stream: true, messages: [{ role: 'system', content: `${systemPrompt}\n\n${userPrompt(request.problem, '请使用以下题目上下文回答后续对话。')}` }, ...request.messages.map((message) => ({ role: message.role, content: message.content }))] }) });
-    if (!response.ok) { const detail = await response.text(); throw new Error(response.status === 401 ? 'API Key 无效，请检查设置。' : response.status === 429 ? '请求过于频繁，请稍后重试。' : `DeepSeek 请求失败（${response.status}）：${detail.slice(0, 160)}`); }
-    if (!response.body) throw new Error('DeepSeek 没有返回可读取的内容。');
+    const response = await fetch(config.endpoint, { method: 'POST', signal: controller.signal, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${settings.apiKey.trim()}` }, body: JSON.stringify({ model: settings.model.trim() || config.defaultModel, stream: true, messages: [{ role: 'system', content: `${systemPrompt}\n\n${userPrompt(request.problem, '请使用以下题目上下文回答后续对话。')}` }, ...request.messages.map((message) => ({ role: message.role, content: message.content }))] }) });
+    if (!response.ok) { const detail = await response.text(); throw new Error(`${config.label} 请求失败（${response.status}）：${detail.slice(0, 500) || '服务未提供错误详情。'}`); }
+    if (!response.body) throw new Error(`${config.label} 没有返回可读取的内容。`);
     const reader = response.body.getReader(); const decoder = new TextDecoder(); let buffer = '';
     const consume = async (chunk: string) => { buffer += chunk; const lines = buffer.split(/\r?\n/); buffer = lines.pop() ?? ''; for (const line of lines) { const dataLine = line.trim(); if (!dataLine.startsWith('data:')) continue; const data = dataLine.slice(5).trim(); if (data === '[DONE]') continue; try { const text = JSON.parse(data).choices?.[0]?.delta?.content; if (text) await send({ type: 'delta', requestId: request.requestId, text }, tabId); } catch { /* Ignore malformed provider lines. */ } } };
-    while (true) { const next = await Promise.race([reader.read(), new Promise<never>((_, reject) => setTimeout(() => reject(new Error('DeepSeek 响应超时，请重试。')), 90000))]); if (next.done) break; await consume(decoder.decode(next.value, { stream: true })); }
+    while (true) { const next = await Promise.race([reader.read(), new Promise<never>((_, reject) => setTimeout(() => reject(new Error(`${config.label} 响应超时，请重试。`)), 90000))]); if (next.done) break; await consume(decoder.decode(next.value, { stream: true })); }
     await consume(decoder.decode());
     if (buffer.trim().startsWith('data:')) await consume('\n');
     await send({ type: 'done', requestId: request.requestId }, tabId);
-  } catch (error) { if ((error as Error).name !== 'AbortError') await send({ type: 'error', requestId: request.requestId, message: (error as Error).message || '请求失败，请重试。' }, tabId); }
+  } catch (error) { if ((error as Error).name !== 'AbortError') await reportError(settings, request.requestId, tabId, (error as Error).message || '请求失败，请重试。'); }
   finally { controllers.delete(request.requestId); }
 }
