@@ -3,13 +3,17 @@ import { systemPrompt, userPrompt } from '../shared/prompt';
 import type { BackgroundRequest, BackgroundEvent, Provider } from '../shared/types';
 
 const controllers = new Map<string, AbortController>();
-const providerConfig: Record<Provider, { label: string; endpoint: string; defaultModel: string }> = {
+const cancelledRequests = new Set<string>();
+const FIRST_TOKEN_TIMEOUT_MS = 10_000;
+const MAX_FIRST_TOKEN_ATTEMPTS = 2;
+type ProviderConfig = { label: string; endpoint: string; defaultModel: string };
+const providerConfig: Record<Provider, ProviderConfig> = {
   deepseek: { label: 'DeepSeek', endpoint: 'https://api.deepseek.com/chat/completions', defaultModel: 'deepseek-v4-flash' },
   qwen: { label: '千问', endpoint: 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions', defaultModel: 'qwen-plus' },
 };
 
 chrome.runtime.onMessage.addListener((request: BackgroundRequest, sender, sendResponse) => {
-  if (request.type === 'cancel') { controllers.get(request.requestId)?.abort(); controllers.delete(request.requestId); return; }
+  if (request.type === 'cancel') { cancelledRequests.add(request.requestId); controllers.get(request.requestId)?.abort(); controllers.delete(request.requestId); return; }
   if (request.type === 'read-editor') {
     void readEditorCode(sender.tab?.id)
       .then(sendResponse)
@@ -85,21 +89,72 @@ async function reportError(settings: Awaited<ReturnType<typeof getSettings>>, re
   await send({ type: 'error', requestId, message: safeMessage }, tabId);
 }
 
-async function streamChat(request: Extract<BackgroundRequest, { type: 'chat' }>, tabId?: number) {
-  const settings = await getSettings();
-  const config = providerConfig[settings.provider];
-  if (!settings.apiKey.trim()) return reportError(settings, request.requestId, tabId, `请先在 LeetLens 设置中填写${config.label} API Key。`);
-  const controller = new AbortController(); controllers.set(request.requestId, controller);
+class FirstTokenTimeoutError extends Error {
+  constructor() { super('FIRST_TOKEN_TIMEOUT'); }
+}
+
+async function streamAttempt(request: Extract<BackgroundRequest, { type: 'chat' }>, tabId: number | undefined, settings: Awaited<ReturnType<typeof getSettings>>, config: ProviderConfig) {
+  const controller = new AbortController();
+  controllers.set(request.requestId, controller);
+  let timedOut = false;
+  let firstTokenReceived = false;
+  const timeout = setTimeout(() => { timedOut = true; controller.abort(); }, FIRST_TOKEN_TIMEOUT_MS);
   try {
     const response = await fetch(config.endpoint, { method: 'POST', signal: controller.signal, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${settings.apiKey.trim()}` }, body: JSON.stringify({ model: settings.model.trim() || config.defaultModel, stream: true, messages: [{ role: 'system', content: `${systemPrompt}\n\n${userPrompt(request.problem, '请使用以下题目上下文回答后续对话。')}` }, ...request.messages.map((message) => ({ role: message.role, content: message.content }))] }) });
     if (!response.ok) { const detail = await response.text(); throw new Error(`${config.label} 请求失败（${response.status}）：${detail.slice(0, 500) || '服务未提供错误详情。'}`); }
     if (!response.body) throw new Error(`${config.label} 没有返回可读取的内容。`);
     const reader = response.body.getReader(); const decoder = new TextDecoder(); let buffer = '';
-    const consume = async (chunk: string) => { buffer += chunk; const lines = buffer.split(/\r?\n/); buffer = lines.pop() ?? ''; for (const line of lines) { const dataLine = line.trim(); if (!dataLine.startsWith('data:')) continue; const data = dataLine.slice(5).trim(); if (data === '[DONE]') continue; try { const text = JSON.parse(data).choices?.[0]?.delta?.content; if (text) await send({ type: 'delta', requestId: request.requestId, text }, tabId); } catch { /* Ignore malformed provider lines. */ } } };
-    while (true) { const next = await Promise.race([reader.read(), new Promise<never>((_, reject) => setTimeout(() => reject(new Error(`${config.label} 响应超时，请重试。`)), 90000))]); if (next.done) break; await consume(decoder.decode(next.value, { stream: true })); }
+    const consume = async (chunk: string) => {
+      buffer += chunk;
+      const lines = buffer.split(/\r?\n/); buffer = lines.pop() ?? '';
+      for (const line of lines) {
+        const dataLine = line.trim(); if (!dataLine.startsWith('data:')) continue;
+        const data = dataLine.slice(5).trim(); if (data === '[DONE]') continue;
+        try {
+          const text = JSON.parse(data).choices?.[0]?.delta?.content;
+          if (text) { firstTokenReceived = true; await send({ type: 'delta', requestId: request.requestId, text }, tabId); }
+        } catch { /* Ignore malformed provider lines. */ }
+      }
+    };
+    while (true) {
+      const next = await reader.read();
+      if (next.done) break;
+      await consume(decoder.decode(next.value, { stream: true }));
+      if (firstTokenReceived) clearTimeout(timeout);
+    }
     await consume(decoder.decode());
     if (buffer.trim().startsWith('data:')) await consume('\n');
-    await send({ type: 'done', requestId: request.requestId }, tabId);
+    if (!firstTokenReceived) throw new FirstTokenTimeoutError();
+    return true;
+  } catch (error) {
+    if (timedOut) throw new FirstTokenTimeoutError();
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+    if (controllers.get(request.requestId) === controller) controllers.delete(request.requestId);
+  }
+}
+
+async function streamChat(request: Extract<BackgroundRequest, { type: 'chat' }>, tabId?: number) {
+  const settings = await getSettings();
+  const config = providerConfig[settings.provider];
+  if (!settings.apiKey.trim()) return reportError(settings, request.requestId, tabId, `请先在 LeetLens 设置中填写${config.label} API Key。`);
+  cancelledRequests.delete(request.requestId);
+  try {
+    for (let attempt = 1; attempt <= MAX_FIRST_TOKEN_ATTEMPTS; attempt += 1) {
+      if (cancelledRequests.has(request.requestId)) return;
+      try {
+        await streamAttempt(request, tabId, settings, config);
+        await send({ type: 'done', requestId: request.requestId }, tabId);
+        return;
+      } catch (error) {
+        if ((error as Error).name === 'AbortError' && !controllers.has(request.requestId)) return;
+        if (!(error instanceof FirstTokenTimeoutError) || attempt === MAX_FIRST_TOKEN_ATTEMPTS) {
+          if (error instanceof FirstTokenTimeoutError) throw new Error(`${config.label} 首个 token 在 ${FIRST_TOKEN_TIMEOUT_MS / 1000} 秒内未返回，已重试 ${MAX_FIRST_TOKEN_ATTEMPTS - 1} 次。`);
+          throw error;
+        }
+      }
+    }
   } catch (error) { if ((error as Error).name !== 'AbortError') await reportError(settings, request.requestId, tabId, (error as Error).message || '请求失败，请重试。'); }
-  finally { controllers.delete(request.requestId); }
+  finally { cancelledRequests.delete(request.requestId); controllers.delete(request.requestId); }
 }

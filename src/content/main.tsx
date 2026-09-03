@@ -1,4 +1,4 @@
-import { createEffect, createSignal, For, onCleanup, onMount, Show } from 'solid-js';
+import { batch, createEffect, createSignal, For, onCleanup, onMount, Show } from 'solid-js';
 import { render } from 'solid-js/web';
 import DOMPurify from 'dompurify';
 import { marked } from 'marked';
@@ -59,6 +59,7 @@ function App() {
   const [error, setError] = createSignal('');
   const [errorLogs, setErrorLogs] = createSignal<ErrorLog[]>([]);
   const [showErrorLogs, setShowErrorLogs] = createSignal(false);
+  const [receivedToken, setReceivedToken] = createSignal(false);
   const [width, setWidth] = createSignal(408);
   const [theme, setTheme] = createSignal<Theme | 'auto'>('auto');
   const [hideNativeLeet, setHideNativeLeet] = createSignal(false);
@@ -66,13 +67,38 @@ function App() {
   let scrollArea!: HTMLDivElement;
   let nativeRestoreRequested = false;
 
+  let contextLoadId = 0;
   const refresh = async () => {
+    const loadId = ++contextLoadId;
+    const initialContext = extractContext();
+    if (initialContext.id !== context().id) {
+      if (busy() && requestId) void chrome.runtime.sendMessage({ type: 'cancel', requestId });
+      requestId = '';
+      batch(() => {
+        setContext(initialContext);
+        setMessages([]);
+        setDraft('');
+        setBusy(false);
+        setError('');
+        setErrorLogs([]);
+        setShowErrorLogs(false);
+        setReceivedToken(false);
+      });
+    }
     const next = await extractContextWithEditor();
-    setContext(next);
-    setMessages(await getHistory(next.id));
-    setError('');
+    const history = await getHistory(next.id);
+    if (loadId !== contextLoadId) return;
+    batch(() => {
+      setContext(next);
+      setMessages(history);
+      setError('');
+      setErrorLogs([]);
+      setShowErrorLogs(false);
+      setReceivedToken(false);
+    });
   };
   const syncContext = async () => {
+    if (extractContext().id !== context().id) { void refresh(); return; }
     const next = await extractContextWithEditor();
     if (next.id !== context().id) { void refresh(); return; }
     setContext(next);
@@ -133,7 +159,7 @@ function App() {
     chrome.storage.onChanged.addListener(storageListener);
     const listener = (data: BackgroundEvent) => {
       if (!data || data.requestId !== requestId) return;
-      if (data.type === 'delta') setMessages((items) => items.map((item) => item.id === requestId ? { ...item, content: item.content + data.text } : item));
+      if (data.type === 'delta') { setReceivedToken(true); setMessages((items) => items.map((item) => item.id === requestId ? { ...item, content: item.content + data.text } : item)); }
       if (data.type === 'done') setBusy(false);
       if (data.type === 'error') { setBusy(false); setMessages((items) => items.filter((item) => item.id !== requestId)); setError(data.message); }
     };
@@ -170,6 +196,9 @@ function App() {
     const settings = await getSettings();
     if (!settings.apiKey.trim()) { setError(`尚未设置${settings.provider === 'qwen' ? '千问' : 'DeepSeek'} API Key。请点击浏览器工具栏中的 LeetLens 图标完成设置。`); return; }
     setError('');
+    setErrorLogs([]);
+    setShowErrorLogs(false);
+    setReceivedToken(false);
     requestId = uid();
     const currentMessages = messages();
     const user: ChatMessage = { id: uid(), role: 'user', content: value, createdAt: Date.now() };
@@ -201,15 +230,14 @@ function App() {
   const reset = async () => { setMessages([]); setDraft(''); await clearHistory(context().id); };
   const openErrorLogs = async () => { setErrorLogs(await getErrorLogs()); setShowErrorLogs(true); };
 
-  return <aside class={`leetlens ${open() ? 'is-open' : 'is-collapsed'}`} data-theme={theme()} style={{ width: open() ? `${width()}px` : undefined }} data-testid="leetlens-panel">
+  return <aside class={`leetlens ${open() ? 'is-open' : 'is-collapsed'} ${busy() && !receivedToken() ? 'is-streaming' : ''}`} data-theme={theme()} style={{ width: open() ? `${width()}px` : undefined }} data-testid="leetlens-panel">
     <div class="leetlens-tabset flexlayout__tabset">
     <div class="panel-content" aria-hidden={!open()}>
       <div class="resize" onMouseDown={resize} />
       <header class="panel-header flexlayout__tabset_header"><div class="active-tab flexlayout__tab_button flexlayout__tab_button--selected"><LeetLensLogo class="logo" /><strong>LeetLens</strong></div><span class="problem-title">{context().title}</span><div class="header-actions"><button onClick={() => void reset()} title="新建对话" aria-label="新建对话">+</button><button onClick={() => setOpen(false)} title="收起面板" aria-label="收起面板">&#x203A;</button></div></header>
       <div class="shortcut-row"><For each={shortcuts}>{(item) => <button disabled={busy()} onClick={() => void send(item)}>{item}</button>}</For></div>
       <div class="conversation" ref={scrollArea!}><Show when={!messages().length}><div class="empty"><LeetLensLogo class="empty-icon" /><h2>从这道题开始</h2><p>我已读取题目与当前编辑器语言。你可以提问，或选择上方操作。</p></div></Show><For each={messages()}>{(message) => { const action = () => extractCodeAction(message.content); return <article class={`message ${message.role}`}><div class="message-label">{message.role === 'user' ? '你' : 'LeetLens'}</div><Show when={message.role === 'assistant'} fallback={<p>{message.content}</p>}><div class="answer" innerHTML={markdown(message.content || (busy() ? '正在思考...' : ''))} /><Show when={action()}>{(currentAction) => <div class="code-actions"><span class="code-kind">{actionLabel(currentAction())}</span><button onClick={() => void applyCode(currentAction())}>应用代码</button></div>}</Show><button class="copy" onClick={() => void copy(message.content)} title="复制回答">复制</button></Show></article>; }}</For></div>
-      <Show when={error()}><div class="error"><span>{error()}</span><div class="error-actions"><button onClick={() => void openErrorLogs()}>查看错误日志</button><button onClick={() => setError('')}>关闭</button></div></div></Show>
-      <Show when={showErrorLogs()}><div class="error-logs"><div class="error-logs-header"><strong>错误日志</strong><button onClick={() => setShowErrorLogs(false)}>关闭</button></div><Show when={errorLogs().length} fallback={<p class="error-logs-empty">暂无错误日志</p>}><For each={errorLogs()}>{(log) => <article class="error-log"><div><strong>{log.provider}</strong><time>{new Date(log.createdAt).toLocaleString()}</time></div><p>{log.message}</p></article>}</For></Show></div></Show>
+      <Show when={error()}><div class="error-area"><div class="error"><span>{error()}</span><div class="error-actions"><button onClick={() => void openErrorLogs()}>查看错误日志</button><button onClick={() => { setError(''); setShowErrorLogs(false); }}>关闭</button></div></div><Show when={showErrorLogs()}><div class="error-logs"><div class="error-logs-header"><strong>错误日志</strong><button onClick={() => setShowErrorLogs(false)}>关闭</button></div><Show when={errorLogs().length} fallback={<p class="error-logs-empty">暂无错误日志</p>}><For each={errorLogs()}>{(log) => <article class="error-log"><div><strong>{log.provider}</strong><time>{new Date(log.createdAt).toLocaleString()}</time></div><p>{log.message}</p></article>}</For></Show></div></Show></div></Show>
       <form class="composer" onSubmit={(event) => { event.preventDefault(); void send(); }}><textarea value={draft()} onInput={(event) => setDraft(event.currentTarget.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void send(); } }} placeholder="询问题目思路、检查代码或要求完整解法..." rows="3" disabled={busy()} /><div><span>{busy() ? '正在生成' : 'Enter 发送'}</span><button type="button" class="clear" disabled={!messages().length || busy()} onClick={() => void reset()} title="清空当前对话" aria-label="清空当前对话">清空</button><Show when={busy()} fallback={<button type="submit" disabled={!draft().trim()}>发送</button>}><button type="button" class="stop" onClick={cancel}>停止</button></Show></div></form>
     </div>
     <Show when={!open()}><button class="reopen" onClick={() => setOpen(true)} title="打开 LeetLens" aria-label="打开 LeetLens"><LeetLensLogo class="reopen-logo" /></button></Show>
