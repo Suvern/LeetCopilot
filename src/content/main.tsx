@@ -7,6 +7,7 @@ import { marked } from 'marked';
 import { clearHistory, getErrorLogs, getHistory, getSettings, saveHistory } from '../shared/storage';
 import { cleanText, extractCodeAction, normalizeLanguage, problemId } from '../shared/parse';
 import { LeetLensLogo } from '../shared/Logo';
+import { PROVIDERS } from '../shared/providers';
 import type { CodeAction } from '../shared/parse';
 import type { BackgroundEvent, ChatMessage, ErrorLog, ProblemContext, Theme } from '../shared/types';
 import './style.css';
@@ -15,6 +16,7 @@ const shortcuts = ['分析思路', '给出提示', '检查我的代码', '解释
 const uid = () => crypto.randomUUID();
 const markdown = (value: string) => DOMPurify.sanitize(marked.parse(value, { async: false }) as string);
 const actionLabel = (action: CodeAction) => action.kind === 'full' ? '完整代码' : '局部更新';
+const errorKindLabel = (kind: ErrorLog['kind']) => ({ configuration: '配置错误', timeout: '首 token 超时', http: 'HTTP 错误', network: '网络错误', stream: '流响应错误', unknown: '未知错误' }[kind ?? 'unknown']);
 
 function selectedText(selectors: string[]) {
   for (const selector of selectors) {
@@ -67,6 +69,7 @@ function App() {
   const [hideNativeLeet, setHideNativeLeet] = createSignal(false);
   let requestId = '';
   let scrollArea!: HTMLDivElement;
+  let stickToBottom = true;
   let nativeRestoreRequested = false;
 
   let contextLoadId = 0;
@@ -86,6 +89,7 @@ function App() {
         setShowErrorLogs(false);
         setReceivedToken(false);
       });
+      stickToBottom = true;
     }
     const next = await extractContextWithEditor();
     const history = await getHistory(next.id);
@@ -185,7 +189,7 @@ function App() {
   createEffect(() => {
     const current = messages();
     if (context().id && current.length) void saveHistory(context().id, current);
-    queueMicrotask(() => scrollArea?.scrollTo({ top: scrollArea.scrollHeight, behavior: 'smooth' }));
+    if (stickToBottom) queueMicrotask(() => scrollArea?.scrollTo({ top: scrollArea.scrollHeight, behavior: 'smooth' }));
   });
   createEffect(() => {
     const host = document.getElementById('leetlens-root');
@@ -201,6 +205,7 @@ function App() {
     setErrorLogs([]);
     setShowErrorLogs(false);
     setReceivedToken(false);
+    stickToBottom = true;
     requestId = uid();
     const currentMessages = messages();
     const user: ChatMessage = { id: uid(), role: 'user', content: value, createdAt: Date.now() };
@@ -233,13 +238,12 @@ function App() {
   const openErrorLogs = async () => { setErrorLogs(await getErrorLogs()); setShowErrorLogs(true); };
 
   return <aside class={`leetlens ${open() ? 'is-open' : 'is-collapsed'} ${busy() && !receivedToken() ? 'is-streaming' : ''}`} data-theme={theme()} style={{ width: open() ? `${width()}px` : undefined }} data-testid="leetlens-panel">
-    <div class="leetlens-tabset flexlayout__tabset">
+    <div class="leetlens-tabset">
     <div class="panel-content" aria-hidden={!open()}>
       <div class="resize" onMouseDown={resize} />
-      <header class="panel-header flexlayout__tabset_header"><div class="active-tab flexlayout__tab_button flexlayout__tab_button--selected"><LeetLensLogo class="logo" /><strong>LeetLens</strong></div><span class="problem-title">{context().title}</span><div class="header-actions"><button onClick={() => void reset()} title="新建对话" aria-label="新建对话">+</button><button onClick={() => setOpen(false)} title="收起面板" aria-label="收起面板">&#x203A;</button></div></header>
+      <header class="panel-header"><div class="active-tab"><LeetLensLogo class="logo" /><strong>LeetLens</strong></div><span class="problem-title">{context().title}</span><div class="header-actions"><button onClick={() => void reset()} title="新建对话" aria-label="新建对话">+</button><button onClick={() => setOpen(false)} title="收起面板" aria-label="收起面板">&#x203A;</button></div></header>
       <div class="shortcut-row"><For each={shortcuts}>{(item) => <button disabled={busy()} onClick={() => void send(item)}>{item}</button>}</For></div>
-      <div class="conversation" ref={scrollArea!}><Show when={!messages().length}><div class="empty"><LeetLensLogo class="empty-icon" /><h2>从这道题开始</h2><p>我已读取题目与当前编辑器语言。你可以提问，或选择上方操作。</p></div></Show><For each={messages()}>{(message) => { const action = () => extractCodeAction(message.content); return <article class={`message ${message.role}`}><div class="message-label">{message.role === 'user' ? '你' : 'LeetLens'}</div><Show when={message.role === 'assistant'} fallback={<p>{message.content}</p>}><div class="answer" innerHTML={markdown(message.content || (busy() ? '正在思考...' : ''))} /><Show when={action()}>{(currentAction) => <div class="code-actions"><span class="code-kind">{actionLabel(currentAction())}</span><button onClick={() => void applyCode(currentAction())}>应用代码</button></div>}</Show><button class="copy" onClick={() => void copy(message.content)} title="复制回答">复制</button></Show></article>; }}</For></div>
-      <Show when={error()}><Collapsible.Root class="error-area" open={showErrorLogs()} onOpenChange={(details) => { setShowErrorLogs(details.open); if (details.open) void openErrorLogs(); }}><div class="error"><span>{error()}</span><div class="error-actions"><Collapsible.Trigger class="error-log-trigger">查看错误日志<Collapsible.Indicator><ChevronDownIcon /></Collapsible.Indicator></Collapsible.Trigger><button onClick={() => { setError(''); setShowErrorLogs(false); }}>关闭</button></div></div><Collapsible.Content class="error-logs"><div class="error-logs-header"><strong>错误日志</strong><button onClick={() => setShowErrorLogs(false)}>关闭</button></div><Show when={errorLogs().length} fallback={<p class="error-logs-empty">暂无错误日志</p>}><For each={errorLogs()}>{(log) => <article class="error-log"><div><strong>{log.provider}</strong><time>{new Date(log.createdAt).toLocaleString()}</time></div><p>{log.message}</p></article>}</For></Show></Collapsible.Content></Collapsible.Root></Show>
+      <div class="conversation" ref={scrollArea!} onScroll={(event) => { const target = event.currentTarget; stickToBottom = target.scrollHeight - target.scrollTop - target.clientHeight < 32; }}><Show when={!messages().length}><div class="empty"><LeetLensLogo class="empty-icon" /><h2>从这道题开始</h2><p>我已读取题目与当前编辑器语言。你可以提问，或选择上方操作。</p></div></Show><For each={messages()}>{(message) => { const action = () => extractCodeAction(message.content); return <article class={`message ${message.role}`}><div class="message-label">{message.role === 'user' ? '你' : 'LeetLens'}</div><Show when={message.role === 'assistant'} fallback={<p>{message.content}</p>}><div class="answer" innerHTML={markdown(message.content || (busy() ? '正在思考...' : ''))} /><Show when={action()}>{(currentAction) => <div class="code-actions"><span class="code-kind">{actionLabel(currentAction())}</span><button onClick={() => void applyCode(currentAction())}>应用代码</button></div>}</Show><button class="copy" onClick={() => void copy(message.content)} title="复制回答">复制</button></Show></article>; }}</For><Show when={error()}><Collapsible.Root class="error-area" open={showErrorLogs()} onOpenChange={(details) => { setShowErrorLogs(details.open); if (details.open) void openErrorLogs(); }}><div class="error" role="alert"><span>{error()}</span><div class="error-actions"><Collapsible.Trigger class="error-log-trigger">查看错误日志<Collapsible.Indicator><ChevronDownIcon /></Collapsible.Indicator></Collapsible.Trigger><button onClick={() => { setError(''); setShowErrorLogs(false); }}>关闭</button></div></div><Collapsible.Content class="error-logs"><div class="error-logs-header"><strong>错误日志</strong><button onClick={() => setShowErrorLogs(false)}>关闭</button></div><Show when={errorLogs().length} fallback={<p class="error-logs-empty">暂无错误日志</p>}><For each={errorLogs()}>{(log) => <article class="error-log"><div class="error-log-meta"><strong>{PROVIDERS[log.provider]?.label ?? log.provider}</strong><span>{errorKindLabel(log.kind)}{log.status ? ` · HTTP ${log.status}${log.statusText ? ` ${log.statusText}` : ''}` : ''}</span><time>{new Date(log.createdAt).toLocaleString()}</time></div><p>{log.message}</p><Show when={log.details}><pre>{log.details}</pre></Show><Show when={log.endpoint || log.model || log.attempts !== undefined || log.timeoutMs}><dl class="error-log-diagnostics"><Show when={log.model}><div><dt>模型</dt><dd>{log.model}</dd></div></Show><Show when={log.endpoint}><div><dt>端点</dt><dd>{log.endpoint}</dd></div></Show><Show when={log.attempts !== undefined}><div><dt>尝试</dt><dd>{log.attempts}</dd></div></Show><Show when={log.timeoutMs}><div><dt>首 token 超时</dt><dd>{log.timeoutMs} ms</dd></div></Show><Show when={log.requestId}><div><dt>请求 ID</dt><dd>{log.requestId}</dd></div></Show></dl></Show></article>}</For></Show></Collapsible.Content></Collapsible.Root></Show></div>
       <form class="composer" onSubmit={(event) => { event.preventDefault(); void send(); }}><textarea value={draft()} onInput={(event) => setDraft(event.currentTarget.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void send(); } }} placeholder="询问题目思路、检查代码或要求完整解法..." rows="3" disabled={busy()} /><div><span>{busy() ? '正在生成' : 'Enter 发送'}</span><button type="button" class="clear" disabled={!messages().length || busy()} onClick={() => void reset()} title="清空当前对话" aria-label="清空当前对话">清空</button><Show when={busy()} fallback={<button type="submit" disabled={!draft().trim()}>发送</button>}><button type="button" class="stop" onClick={cancel}>停止</button></Show></div></form>
     </div>
     <Show when={!open()}><button class="reopen" onClick={() => setOpen(true)} title="打开 LeetLens" aria-label="打开 LeetLens"><LeetLensLogo class="reopen-logo" /></button></Show>

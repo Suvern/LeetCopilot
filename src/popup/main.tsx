@@ -8,18 +8,10 @@ import { Portal, render } from 'solid-js/web';
 import { LeetLensLogo } from '../shared/Logo';
 import { PROVIDERS, PROVIDER_OPTIONS } from '../shared/providers';
 import { DEFAULT_SETTINGS, getSettings, saveSettings } from '../shared/storage';
-import type { Provider, Theme } from '../shared/types';
+import type { Provider } from '../shared/types';
 import './style.css';
 
 const providerCollection = createListCollection({ items: PROVIDER_OPTIONS });
-const themeCollection = createListCollection({
-  items: [
-    { value: 'auto', label: '跟随 LeetCode' },
-    { value: 'light', label: '浅色模式' },
-    { value: 'dark', label: '深色模式' },
-  ],
-});
-
 function Popup() {
   const [settings, setSettings] = createSignal(DEFAULT_SETTINGS);
   const [saved, setSaved] = createSignal(false);
@@ -41,7 +33,7 @@ function Popup() {
     const current = settings();
     setSettings({ ...current, provider, apiKey: current.apiKeys[provider], model: PROVIDERS[provider].defaultModel });
   };
-  const changeTheme = (theme: Theme | 'auto') => setSettings((current) => ({ ...current, theme }));
+  const changeTheme = (dark: boolean) => setSettings((current) => ({ ...current, theme: dark ? 'dark' : current.theme === 'light' ? 'light' : 'auto' }));
   const save = async (event: SubmitEvent) => {
     event.preventDefault();
     await saveSettings(settings());
@@ -77,13 +69,12 @@ function Popup() {
           <Field.Root class="field-root"><Field.Label class="field-label">模型名称</Field.Label><input class="text-input" value={settings().model} onInput={(event) => update('model', event.currentTarget.value)} placeholder={provider().defaultModel} /></Field.Root>
         </section>
         <section class="settings-section preferences" aria-labelledby="preferences-heading">
-          <div class="section-heading"><Settings2Icon aria-hidden="true" /><div><h2 id="preferences-heading">显示偏好</h2><p>只影响当前浏览器内的 LeetCode 页面</p></div></div>
-          <Select.Root class="select-root" collection={themeCollection} value={[settings().theme]} onValueChange={(details) => { const value = details.value[0] as Theme | 'auto' | undefined; if (value) changeTheme(value); }}>
-            <Select.Label class="field-label">页面主题</Select.Label>
-            <Select.Control class="select-control"><Select.Trigger class="select-trigger" aria-label="页面主题"><Select.ValueText class="select-value" placeholder="选择主题" /><Select.Indicator class="select-indicator"><ChevronDownIcon /></Select.Indicator></Select.Trigger></Select.Control>
-            <Portal><Select.Positioner class="select-positioner"><Select.Content class="select-content"><For each={themeCollection.items}>{(item) => <Select.Item class="select-item" item={item}><Select.ItemText>{item.label}</Select.ItemText><Select.ItemIndicator><CheckIcon /></Select.ItemIndicator></Select.Item>}</For></Select.Content></Select.Positioner></Portal>
-            <Select.HiddenSelect />
-          </Select.Root>
+          <div class="section-heading"><Settings2Icon aria-hidden="true" /><div><h2 id="preferences-heading">显示偏好</h2><p>用开关快速调整 LeetCode 页面</p></div></div>
+          <Switch.Root class="native-switch" checked={settings().theme === 'dark'} onCheckedChange={(details) => changeTheme(details.checked)}>
+            <Switch.Control class="switch-control"><Switch.Thumb class="switch-thumb" /></Switch.Control>
+            <span><Switch.Label class="switch-label">深色模式</Switch.Label><span class="switch-description">打开后固定使用深色界面</span></span>
+            <Switch.HiddenInput />
+          </Switch.Root>
           <Switch.Root class="native-switch" checked={settings().hideNativeLeet} onCheckedChange={(details) => update('hideNativeLeet', details.checked)}>
             <Switch.Control class="switch-control"><Switch.Thumb class="switch-thumb" /></Switch.Control>
             <span><Switch.Label class="switch-label">隐藏原生 Leet 面板</Switch.Label><span class="switch-description">在 LeetCode 内仅显示 LeetLens</span></span>
