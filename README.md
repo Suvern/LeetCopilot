@@ -2,8 +2,6 @@
 
 <h2 align="center">LeetCopilot</h2>
 
----
-
 <p align="center">LeetCopilot 是一个 <strong>免费、</strong> <strong>开源 </strong> 的 LeetCode AI 辅助工具</p>
 
 只需要填入你的 API Key 即可在 AI 辅助下高效刷题，现支持 [DeepSeek](https://platform.deepseek.com/) 和 [千问](https://www.qianwenai.com/)

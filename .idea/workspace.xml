@@ -5,11 +5,7 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="53a96874-ad86-4f30-8e14-40a9a992c825" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.github/workflows/release.yml" beforeDir="false" afterPath="$PROJECT_DIR$/.github/workflows/release.yml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/check-version.mjs" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/check-version.mjs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/pack-extension.mjs" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/pack-extension.mjs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/prepare-release.mjs" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/prepare-release.mjs" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -42,10 +38,12 @@
   </component>
   <component name="PropertiesComponent"><![CDATA[{
   "keyToString": {
+    "ASKED_SHARE_PROJECT_CONFIGURATION_FILES": "true",
     "ModuleVcsDetector.initialDetectionPerformed": "true",
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "RunOnceActivity.git.unshallow": "true",
     "RunOnceActivity.typescript.service.memoryLimit.init": "true",
+    "SHARE_PROJECT_CONFIGURATION_FILES": "true",
     "codeWithMe.voiceChat.enabledByDefault": "false",
     "git-widget-placeholder": "main",
     "javascript.preferred.runtime.type.id": "node",
@@ -56,7 +54,7 @@
     "node.js.selected.package.tslint": "(autodetect)",
     "nodejs_package_manager_path": "npm",
     "settings.editor.selected.configurable": "preferences.language.and.region",
-    "ts.external.directory.path": "/Users/suvern/source/LeetLens/node_modules/typescript/lib"
+    "ts.external.directory.path": "/Users/suvern/source/LeetCopilot/node_modules/typescript/lib"
   }
 }]]></component>
   <component name="SharedIndexes">
@@ -74,7 +72,7 @@
       <option name="presentableId" value="Default" />
       <updated>1788513538203</updated>
       <workItem from="1788513539558" duration="5830000" />
-      <workItem from="1788545342117" duration="495000" />
+      <workItem from="1788545342117" duration="716000" />
     </task>
     <servers />
   </component>
