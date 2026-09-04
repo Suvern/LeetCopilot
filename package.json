@@ -3,17 +3,18 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "packageManager": "pnpm@11.24.0",
   "scripts": {
     "dev": "vite",
     "build": "vite build --config vite.config.ts && vite build --config vite.content.config.ts",
-    "package": "npm run build && node scripts/pack-extension.mjs",
+    "package": "pnpm run build && node scripts/pack-extension.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
-    "test": "npm run test:unit",
+    "test": "pnpm run test:unit",
     "test:unit": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "node tests/browser-smoke.mjs && node tests/stream-smoke.mjs",
-    "test:smoke": "npm run test:e2e"
+    "test:smoke": "pnpm run test:e2e"
   },
   "dependencies": {
     "@ark-ui/solid": "^5.39.1",

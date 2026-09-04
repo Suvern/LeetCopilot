@@ -17,8 +17,8 @@ LeetCopilot has no backend, telemetry, LeetCode login, submission automation, or
 Requirements: Node.js 20 or newer.
 
 ```bash
-npm ci
-npm run build
+pnpm install --frozen-lockfile
+pnpm run build
 ```
 
 Then open `chrome://extensions`, enable **Developer mode**, choose **Load unpacked**, and select the generated `dist/` directory. Open the LeetCopilot popup on a supported problem page and configure a provider API key.
@@ -26,14 +26,14 @@ Then open `chrome://extensions`, enable **Developer mode**, choose **Load unpack
 ## Development
 
 ```bash
-npm run typecheck
-npm test
-npm run lint
-npm run build
-npm run package
+pnpm run typecheck
+pnpm test
+pnpm run lint
+pnpm run build
+pnpm run package
 ```
 
-`npm run package` creates `release/LeetCopilot-<version>.zip`. Release archives contain no API keys or local environment files.
+`pnpm run package` creates `release/LeetCopilot-<version>.zip`. Release archives contain no API keys or local environment files.
 
 ## Scope
 

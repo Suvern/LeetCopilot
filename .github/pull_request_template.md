@@ -2,10 +2,10 @@
 
 ## Verification
 
-- [ ] `npm run typecheck`
-- [ ] `npm test`
-- [ ] `npm run lint`
-- [ ] `npm run build`
+- [ ] `pnpm run typecheck`
+- [ ] `pnpm test`
+- [ ] `pnpm run lint`
+- [ ] `pnpm run build`
 - [ ] Browser smoke test, if applicable
 
 ## Security check
