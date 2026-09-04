@@ -7,10 +7,15 @@ const root = resolve(import.meta.dirname, '..');
 const dist = resolve(root, 'dist');
 const release = resolve(root, 'release');
 const manifestPath = resolve(dist, 'manifest.json');
+const expectedVersion = process.env.LEETCOPILOT_RELEASE_VERSION?.trim();
 
 const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
-if (!manifest.version || !/^\d+\.\d+\.\d+$/.test(manifest.version)) {
+if (!manifest.version || !/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(manifest.version)) {
   throw new Error('dist/manifest.json must contain a valid semver version.');
+}
+
+if (expectedVersion !== undefined && manifest.version !== expectedVersion) {
+  throw new Error(`Expected version mismatch: expected=${expectedVersion}, dist/manifest.json=${manifest.version}`);
 }
 
 await mkdir(release, { recursive: true });

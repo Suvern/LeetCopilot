@@ -5,7 +5,7 @@ const root = resolve(import.meta.dirname, '..');
 const packagePath = resolve(root, 'package.json');
 const manifestPath = resolve(root, 'public/manifest.json');
 const version = process.argv[2]?.trim();
-const versionPattern = /^\d+\.\d+\.\d+$/;
+const versionPattern = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 
 if (!versionPattern.test(version ?? '')) {
   throw new Error('Usage: pnpm release <version>, for example: pnpm release 0.1.0');
