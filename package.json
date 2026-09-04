@@ -9,9 +9,11 @@
     "package": "npm run build && node scripts/pack-extension.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
-    "test": "vitest run",
+    "test": "npm run test:unit",
+    "test:unit": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "node tests/browser-smoke.mjs && node tests/stream-smoke.mjs"
+    "test:e2e": "node tests/browser-smoke.mjs && node tests/stream-smoke.mjs",
+    "test:smoke": "npm run test:e2e"
   },
   "dependencies": {
     "@ark-ui/solid": "^5.39.1",
