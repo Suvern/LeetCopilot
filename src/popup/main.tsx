@@ -2,19 +2,19 @@ import { Field } from '@ark-ui/solid/field';
 import { PasswordInput } from '@ark-ui/solid/password-input';
 import { Select, createListCollection } from '@ark-ui/solid/select';
 import { Switch } from '@ark-ui/solid/switch';
-import { CheckIcon, ChevronDownIcon, ExternalLinkIcon, EyeIcon, EyeOffIcon, KeyRoundIcon, Settings2Icon } from 'lucide-solid';
+import { ChevronDownIcon, ExternalLinkIcon, EyeIcon, EyeOffIcon, KeyRoundIcon, Settings2Icon } from 'lucide-solid';
 import { createSignal, For, Show } from 'solid-js';
 import { Portal, render } from 'solid-js/web';
-import { LeetLensLogo } from '../shared/Logo';
+import { LeetCopilotLogo } from '../shared/Logo';
 import { PROVIDERS, PROVIDER_OPTIONS } from '../shared/providers';
-import { DEFAULT_SETTINGS, getSettings, saveSettings } from '../shared/storage';
+import { DEFAULT_SETTINGS, getSettings, savePreferences, saveSettings } from '../shared/storage';
 import type { Provider } from '../shared/types';
 import './style.css';
 
 const providerCollection = createListCollection({ items: PROVIDER_OPTIONS });
 function Popup() {
   const [settings, setSettings] = createSignal(DEFAULT_SETTINGS);
-  const [saved, setSaved] = createSignal(false);
+  const [status, setStatus] = createSignal<{ kind: 'idle' | 'testing' | 'success' | 'error'; message: string }>({ kind: 'idle', message: '' });
 
   void getSettings().then(setSettings);
 
@@ -33,12 +33,40 @@ function Popup() {
     const current = settings();
     setSettings({ ...current, provider, apiKey: current.apiKeys[provider], model: PROVIDERS[provider].defaultModel });
   };
-  const changeTheme = (dark: boolean) => setSettings((current) => ({ ...current, theme: dark ? 'dark' : current.theme === 'light' ? 'light' : 'auto' }));
-  const save = async (event: SubmitEvent) => {
-    event.preventDefault();
-    await saveSettings(settings());
-    setSaved(true);
-    window.setTimeout(() => setSaved(false), 1800);
+  const changeTheme = (dark: boolean) => {
+    const theme = dark ? 'dark' : settings().theme === 'light' ? 'light' : 'auto';
+    setSettings((current) => ({ ...current, theme }));
+    void savePreferences({ theme, hideNativeLeet: settings().hideNativeLeet });
+  };
+  const changeHideNativeLeet = (hideNativeLeet: boolean) => {
+    setSettings((current) => ({ ...current, hideNativeLeet }));
+    void savePreferences({ theme: settings().theme, hideNativeLeet });
+  };
+  let testSequence = 0;
+  let pendingTest: { fingerprint: string; promise: Promise<{ ok?: boolean; error?: string } | undefined> } | undefined;
+  const testAndSave = async () => {
+    const current = settings();
+    if (!current.apiKey.trim()) { setStatus({ kind: 'error', message: '请先填写 API Key。' }); return; }
+    const fingerprint = `${current.provider}\n${current.model.trim()}\n${current.apiKey.trim()}`;
+    const sequence = ++testSequence;
+    setStatus({ kind: 'testing', message: '正在测试 API Key…' });
+    const test = pendingTest?.fingerprint === fingerprint
+      ? pendingTest.promise
+      : (async () => {
+        try {
+          return await chrome.runtime.sendMessage({ type: 'test-key', provider: current.provider, apiKey: current.apiKey, model: current.model });
+        } catch {
+          return { ok: false, error: 'API Key 测试失败，请检查扩展权限或网络连接。' };
+        }
+      })();
+    pendingTest = { fingerprint, promise: test };
+    const result = await test;
+    if (pendingTest?.promise === test) pendingTest = undefined;
+    if (sequence !== testSequence) return;
+    if (!result?.ok) { setStatus({ kind: 'error', message: result?.error ?? 'API Key 测试失败。' }); return; }
+    await saveSettings(current);
+    setStatus({ kind: 'success', message: 'API Key 测试成功，已保存' });
+    window.setTimeout(() => setStatus((value) => value.kind === 'success' ? { kind: 'idle', message: '' } : value), 2200);
   };
   const provider = () => PROVIDERS[settings().provider];
   const openApiKeys = () => void chrome.tabs.create({ url: provider().apiKeysUrl });
@@ -47,18 +75,18 @@ function Popup() {
     <main class="popup-shell">
       <header class="popup-header">
         <div class="brand-lockup">
-          <div class="brand-mark"><LeetLensLogo class="brand-logo" /></div>
-          <div><p class="eyebrow">LEETCODE WORKSPACE</p><h1>LeetLens</h1></div>
+          <div class="brand-mark"><LeetCopilotLogo class="brand-logo" /></div>
+          <div><p class="eyebrow">LEETCODE WORKSPACE</p><h1>LeetCopilot</h1></div>
         </div>
         <Settings2Icon aria-hidden="true" class="header-icon" />
       </header>
-      <form class="settings-form" onSubmit={save}>
+      <div class="settings-form">
         <section class="settings-section" aria-labelledby="provider-heading">
           <div class="section-heading"><KeyRoundIcon aria-hidden="true" /><div><h2 id="provider-heading">模型连接</h2><p>选择服务并保存在此浏览器中</p></div></div>
           <Select.Root class="select-root" collection={providerCollection} value={[settings().provider]} onValueChange={(details) => { const value = details.value[0] as Provider | undefined; if (value) changeProvider(value); }}>
             <Select.Label class="field-label">AI 平台</Select.Label>
             <Select.Control class="select-control"><Select.Trigger class="select-trigger" aria-label="AI 平台"><Select.ValueText class="select-value" placeholder="选择平台" /><Select.Indicator class="select-indicator"><ChevronDownIcon /></Select.Indicator></Select.Trigger></Select.Control>
-            <Portal><Select.Positioner class="select-positioner"><Select.Content class="select-content"><For each={providerCollection.items}>{(item) => <Select.Item class="select-item" item={item}><Select.ItemText>{item.label}</Select.ItemText><Select.ItemIndicator><CheckIcon /></Select.ItemIndicator></Select.Item>}</For></Select.Content></Select.Positioner></Portal>
+            <Portal><Select.Positioner class="select-positioner"><Select.Content class="select-content"><For each={providerCollection.items}>{(item) => <Select.Item class="select-item" item={item}><Select.ItemText>{item.label}</Select.ItemText><Show when={Boolean(settings().apiKeys[item.value as Provider]?.trim())}><KeyRoundIcon class="provider-configured" aria-label="已配置 API Key" /></Show></Select.Item>}</For></Select.Content></Select.Positioner></Portal>
             <Select.HiddenSelect />
           </Select.Root>
           <PasswordInput.Root class="password-root" autoComplete="new-password">
@@ -67,6 +95,7 @@ function Popup() {
             <button class="api-key-link" type="button" onClick={openApiKeys}>获取 {provider().label} API Key <ExternalLinkIcon aria-hidden="true" /></button>
           </PasswordInput.Root>
           <Field.Root class="field-root"><Field.Label class="field-label">模型名称</Field.Label><input class="text-input" value={settings().model} onInput={(event) => update('model', event.currentTarget.value)} placeholder={provider().defaultModel} /></Field.Root>
+          <div class="connection-footer"><Show when={status().message}><span class={`connection-status ${status().kind}`} role={status().kind === 'error' ? 'alert' : 'status'}>{status().message}</span></Show><button class="save-button" type="button" onClick={() => void testAndSave()} disabled={status().kind === 'testing'}>{status().kind === 'testing' ? '测试中…' : '测试并保存'}</button></div>
         </section>
         <section class="settings-section preferences" aria-labelledby="preferences-heading">
           <div class="section-heading"><Settings2Icon aria-hidden="true" /><div><h2 id="preferences-heading">显示偏好</h2><p>用开关快速调整 LeetCode 页面</p></div></div>
@@ -75,14 +104,14 @@ function Popup() {
             <span><Switch.Label class="switch-label">深色模式</Switch.Label><span class="switch-description">打开后固定使用深色界面</span></span>
             <Switch.HiddenInput />
           </Switch.Root>
-          <Switch.Root class="native-switch" checked={settings().hideNativeLeet} onCheckedChange={(details) => update('hideNativeLeet', details.checked)}>
+          <Switch.Root class="native-switch" checked={settings().hideNativeLeet} onCheckedChange={(details) => changeHideNativeLeet(details.checked)}>
             <Switch.Control class="switch-control"><Switch.Thumb class="switch-thumb" /></Switch.Control>
-            <span><Switch.Label class="switch-label">隐藏原生 Leet 面板</Switch.Label><span class="switch-description">在 LeetCode 内仅显示 LeetLens</span></span>
+            <span><Switch.Label class="switch-label">隐藏原生 Leet 面板</Switch.Label><span class="switch-description">在 LeetCode 内仅显示 LeetCopilot</span></span>
             <Switch.HiddenInput />
           </Switch.Root>
         </section>
-        <footer class="popup-footer"><Show when={saved()} fallback={<span>API Key 仅保存在本地扩展存储中</span>}><span class="saved-status"><CheckIcon aria-hidden="true" />设置已保存</span></Show><button class="save-button" type="submit">保存设置</button></footer>
-      </form>
+        <footer class="popup-footer"><span>显示偏好会即时生效，API Key 测试成功后保存</span></footer>
+      </div>
     </main>
   );
 }

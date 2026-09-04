@@ -14,7 +14,7 @@ if (!manifest.version || !/^\d+\.\d+\.\d+$/.test(manifest.version)) {
 }
 
 await mkdir(release, { recursive: true });
-const archivePath = resolve(release, `LeetLens-${manifest.version}.zip`);
+const archivePath = resolve(release, `LeetCopilot-${manifest.version}.zip`);
 const output = createWriteStream(archivePath);
 const archive = archiver('zip', { zlib: { level: 9 } });
 

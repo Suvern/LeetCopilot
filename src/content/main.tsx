@@ -1,18 +1,18 @@
 import { batch, createEffect, createSignal, For, onCleanup, onMount, Show } from 'solid-js';
 import { Collapsible } from '@ark-ui/solid/collapsible';
-import { ChevronDownIcon } from 'lucide-solid';
+import { ChevronDownIcon, KeyRoundIcon } from 'lucide-solid';
 import { render } from 'solid-js/web';
 import DOMPurify from 'dompurify';
 import { marked } from 'marked';
-import { clearHistory, getErrorLogs, getHistory, getSettings, saveHistory } from '../shared/storage';
+import { clearErrorLogs, clearHistory, getErrorLogs, getHistory, getSettings, saveHistory } from '../shared/storage';
 import { cleanText, extractCodeAction, normalizeLanguage, problemId } from '../shared/parse';
-import { LeetLensLogo } from '../shared/Logo';
+import { LeetCopilotLogo } from '../shared/Logo';
 import { PROVIDERS } from '../shared/providers';
 import type { CodeAction } from '../shared/parse';
+import { shortcuts } from '../shared/prompt';
 import type { BackgroundEvent, ChatMessage, ErrorLog, ProblemContext, Theme } from '../shared/types';
 import './style.css';
 
-const shortcuts = ['分析思路', '给出提示', '检查我的代码', '解释我的代码', '优化复杂度', '生成完整解法'];
 const uid = () => crypto.randomUUID();
 const markdown = (value: string) => DOMPurify.sanitize(marked.parse(value, { async: false }) as string);
 const actionLabel = (action: CodeAction) => action.kind === 'full' ? '完整代码' : '局部更新';
@@ -28,7 +28,7 @@ function selectedText(selectors: string[]) {
 
 function extractContext(): ProblemContext {
   const workbench = (document.querySelector('#qd-content') ?? document.querySelector('main') ?? document.body).cloneNode(true) as HTMLElement;
-  workbench.querySelector('#leetlens-root')?.remove();
+  workbench.querySelector('#leetcopilot-root')?.remove();
   const heading = selectedText(['h1', '[data-cy="question-title"]']);
   const bodyText = cleanText(workbench.innerText).slice(0, 18000);
   const title = heading || document.title.replace(/[-|].*/, '').trim() || '当前题目';
@@ -62,11 +62,13 @@ function App() {
   const [busy, setBusy] = createSignal(false);
   const [error, setError] = createSignal('');
   const [errorLogs, setErrorLogs] = createSignal<ErrorLog[]>([]);
+  const [errorLogId, setErrorLogId] = createSignal<string>();
   const [showErrorLogs, setShowErrorLogs] = createSignal(false);
   const [receivedToken, setReceivedToken] = createSignal(false);
   const [width, setWidth] = createSignal(408);
   const [theme, setTheme] = createSignal<Theme | 'auto'>('auto');
   const [hideNativeLeet, setHideNativeLeet] = createSignal(false);
+  const [hasApiKey, setHasApiKey] = createSignal(false);
   let requestId = '';
   let scrollArea!: HTMLDivElement;
   let stickToBottom = true;
@@ -86,6 +88,7 @@ function App() {
         setBusy(false);
         setError('');
         setErrorLogs([]);
+        setErrorLogId();
         setShowErrorLogs(false);
         setReceivedToken(false);
       });
@@ -99,6 +102,7 @@ function App() {
       setMessages(history);
       setError('');
       setErrorLogs([]);
+      setErrorLogId();
       setShowErrorLogs(false);
       setReceivedToken(false);
     });
@@ -116,17 +120,17 @@ function App() {
     const close = tabset?.querySelector<HTMLElement>('.flexlayout__tab_button_trailing[title="Close"], .flexlayout__tab_button_trailing');
     close?.click();
     tabset?.querySelector<HTMLElement>('.flexlayout__tabset_content')?.setAttribute('aria-hidden', 'true');
-    nativeSelectionPopups().forEach((element) => { element.dataset.leetlensHidden = 'true'; element.hidden = true; element.style.display = 'none'; });
+    nativeSelectionPopups().forEach((element) => { element.dataset.leetcopilotHidden = 'true'; element.hidden = true; element.style.display = 'none'; });
   };
   const showNativeLeet = () => {
     const control = document.querySelector<HTMLElement>('[aria-label="问下 Leet"]');
     const target = control?.closest('.ai-agent-guide') as HTMLElement | null;
     if (target) {
-      delete target.dataset.leetlensHidden;
+      delete target.dataset.leetcopilotHidden;
       target.hidden = false;
       target.style.display = '';
     }
-    nativeSelectionPopups().forEach((element) => { if (element.dataset.leetlensHidden === 'true') { delete element.dataset.leetlensHidden; element.hidden = false; element.style.display = ''; } });
+    nativeSelectionPopups().forEach((element) => { if (element.dataset.leetcopilotHidden === 'true') { delete element.dataset.leetcopilotHidden; element.hidden = false; element.style.display = ''; } });
     if (!document.querySelector('#ai-agent_tab')) control?.click();
   };
   const syncNativeLeet = () => {
@@ -134,11 +138,11 @@ function App() {
     const target = control?.closest('.ai-agent-guide') as HTMLElement | null;
     if (target) {
       if (hideNativeLeet()) {
-        target.dataset.leetlensHidden = 'true';
+        target.dataset.leetcopilotHidden = 'true';
         target.hidden = true;
         target.style.display = 'none';
-      } else if (target.dataset.leetlensHidden === 'true') {
-        delete target.dataset.leetlensHidden;
+      } else if (target.dataset.leetcopilotHidden === 'true') {
+        delete target.dataset.leetcopilotHidden;
         target.hidden = false;
         target.style.display = '';
       }
@@ -152,10 +156,11 @@ function App() {
 
   onMount(() => {
     void refresh();
-    void getSettings().then((settings) => { setTheme(settings.theme); setHideNativeLeet(settings.hideNativeLeet); }).catch(() => { setTheme('auto'); setHideNativeLeet(false); });
+    void getSettings().then((settings) => { setHasApiKey(Object.values(settings.apiKeys).some((key) => key.trim())); setTheme(settings.theme); setHideNativeLeet(settings.hideNativeLeet); }).catch(() => { setHasApiKey(false); setTheme('auto'); setHideNativeLeet(false); });
     const storageListener = (changes: { [key: string]: chrome.storage.StorageChange }, area: string) => {
-      if (area !== 'local' || !changes['leetlens:settings']) return;
+      if (area !== 'local' || !changes['leet-copilot:settings']) return;
       void getSettings().then((settings) => {
+        setHasApiKey(Object.values(settings.apiKeys).some((key) => key.trim()));
         if (settings.hideNativeLeet !== hideNativeLeet()) nativeRestoreRequested = !settings.hideNativeLeet;
         setTheme(settings.theme);
         setHideNativeLeet(settings.hideNativeLeet);
@@ -163,11 +168,12 @@ function App() {
       });
     };
     chrome.storage.onChanged.addListener(storageListener);
+    document.addEventListener('keydown', clearShortcut, true);
     const listener = (data: BackgroundEvent) => {
       if (!data || data.requestId !== requestId) return;
       if (data.type === 'delta') { setReceivedToken(true); setMessages((items) => items.map((item) => item.id === requestId ? { ...item, content: item.content + data.text } : item)); }
       if (data.type === 'done') setBusy(false);
-      if (data.type === 'error') { setBusy(false); setMessages((items) => items.filter((item) => item.id !== requestId)); setError(data.message); }
+      if (data.type === 'error') { setBusy(false); setMessages((items) => items.filter((item) => item.id !== requestId)); setErrorLogId(data.errorLogId); setError(data.message); }
     };
     chrome.runtime.onMessage.addListener(listener);
     let pending = false;
@@ -183,7 +189,7 @@ function App() {
     const hydration = setTimeout(syncContext, 1200);
     const resizeObserver = new ResizeObserver(syncLayout);
     resizeObserver.observe(host);
-    onCleanup(() => { chrome.runtime.onMessage.removeListener(listener); chrome.storage.onChanged.removeListener(storageListener); observer.disconnect(); resizeObserver.disconnect(); clearTimeout(hydration); });
+    onCleanup(() => { chrome.runtime.onMessage.removeListener(listener); chrome.storage.onChanged.removeListener(storageListener); document.removeEventListener('keydown', clearShortcut, true); observer.disconnect(); resizeObserver.disconnect(); clearTimeout(hydration); });
   });
 
   createEffect(() => {
@@ -192,7 +198,7 @@ function App() {
     if (stickToBottom) queueMicrotask(() => scrollArea?.scrollTo({ top: scrollArea.scrollHeight, behavior: 'smooth' }));
   });
   createEffect(() => {
-    const host = document.getElementById('leetlens-root');
+    const host = document.getElementById('leetcopilot-root');
     if (host) { host.style.width = open() ? `${width()}px` : '44px'; syncLayout(); }
   });
 
@@ -200,9 +206,10 @@ function App() {
     const value = text.trim();
     if (!value || busy()) return;
     const settings = await getSettings();
-    if (!settings.apiKey.trim()) { setError(`尚未设置${settings.provider === 'qwen' ? '千问' : 'DeepSeek'} API Key。请点击浏览器工具栏中的 LeetLens 图标完成设置。`); return; }
+    if (!settings.apiKey.trim()) { setError(`尚未设置${settings.provider === 'qwen' ? '千问' : 'DeepSeek'} API Key。请点击浏览器工具栏中的 LeetCopilot 图标完成设置。`); return; }
     setError('');
     setErrorLogs([]);
+    setErrorLogId();
     setShowErrorLogs(false);
     setReceivedToken(false);
     stickToBottom = true;
@@ -234,25 +241,53 @@ function App() {
   };
   const resize = (event: MouseEvent) => { event.preventDefault(); const startX = event.clientX; const startWidth = width(); const move = (moveEvent: MouseEvent) => setWidth(Math.max(340, Math.min(620, startWidth + startX - moveEvent.clientX))); const up = () => { document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', up); }; document.addEventListener('mousemove', move); document.addEventListener('mouseup', up); };
   const copy = async (text: string) => { await navigator.clipboard.writeText(text); };
-  const reset = async () => { setMessages([]); setDraft(''); await clearHistory(context().id); };
-  const openErrorLogs = async () => { setErrorLogs(await getErrorLogs()); setShowErrorLogs(true); };
+  const reset = async () => {
+    const activeRequestId = requestId;
+    if (busy() && activeRequestId) void chrome.runtime.sendMessage({ type: 'cancel', requestId: activeRequestId });
+    requestId = '';
+    batch(() => {
+      setMessages([]);
+      setDraft('');
+      setBusy(false);
+      setError('');
+      setErrorLogs([]);
+      setErrorLogId();
+      setShowErrorLogs(false);
+      setReceivedToken(false);
+    });
+    await Promise.all([clearHistory(context().id), clearErrorLogs()]);
+  };
+  const clearShortcut = (event: KeyboardEvent) => {
+    if ((!event.ctrlKey && !event.metaKey) || event.key.toLowerCase() !== 'c') return;
+    const targetInPanel = event.target instanceof Node && host.contains(event.target);
+    const panelHasFocus = host.matches(':focus-within');
+    if (!targetInPanel && !panelHasFocus) return;
+    event.preventDefault();
+    void reset();
+  };
+  const openErrorLogs = async () => {
+    const logs = await getErrorLogs();
+    setErrorLogs(errorLogId() ? logs.filter((log) => log.id === errorLogId()) : logs.filter((log) => log.requestId === requestId));
+    setShowErrorLogs(true);
+  };
 
-  return <aside class={`leetlens ${open() ? 'is-open' : 'is-collapsed'} ${busy() && !receivedToken() ? 'is-streaming' : ''}`} data-theme={theme()} style={{ width: open() ? `${width()}px` : undefined }} data-testid="leetlens-panel">
-    <div class="leetlens-tabset">
+  return <aside tabIndex={-1} class={`leetcopilot ${open() ? 'is-open' : 'is-collapsed'} ${busy() && !receivedToken() ? 'is-streaming' : ''}`} data-theme={theme()} style={{ width: open() ? `${width()}px` : undefined }} data-testid="leetcopilot-panel">
+    <div class="leetcopilot-tabset">
     <div class="panel-content" aria-hidden={!open()}>
       <div class="resize" onMouseDown={resize} />
-      <header class="panel-header"><div class="active-tab"><LeetLensLogo class="logo" /><strong>LeetLens</strong></div><span class="problem-title">{context().title}</span><div class="header-actions"><button onClick={() => void reset()} title="新建对话" aria-label="新建对话">+</button><button onClick={() => setOpen(false)} title="收起面板" aria-label="收起面板">&#x203A;</button></div></header>
+      <header class="panel-header"><div class="active-tab"><LeetCopilotLogo class="logo" /><strong>LeetCopilot</strong></div><span class="problem-title">{context().title}</span><div class="header-actions"><button onClick={() => setOpen(false)} title="收起面板" aria-label="收起面板">&#x203A;</button></div></header>
       <div class="shortcut-row"><For each={shortcuts}>{(item) => <button disabled={busy()} onClick={() => void send(item)}>{item}</button>}</For></div>
-      <div class="conversation" ref={scrollArea!} onScroll={(event) => { const target = event.currentTarget; stickToBottom = target.scrollHeight - target.scrollTop - target.clientHeight < 32; }}><Show when={!messages().length}><div class="empty"><LeetLensLogo class="empty-icon" /><h2>从这道题开始</h2><p>我已读取题目与当前编辑器语言。你可以提问，或选择上方操作。</p></div></Show><For each={messages()}>{(message) => { const action = () => extractCodeAction(message.content); return <article class={`message ${message.role}`}><div class="message-label">{message.role === 'user' ? '你' : 'LeetLens'}</div><Show when={message.role === 'assistant'} fallback={<p>{message.content}</p>}><div class="answer" innerHTML={markdown(message.content || (busy() ? '正在思考...' : ''))} /><Show when={action()}>{(currentAction) => <div class="code-actions"><span class="code-kind">{actionLabel(currentAction())}</span><button onClick={() => void applyCode(currentAction())}>应用代码</button></div>}</Show><button class="copy" onClick={() => void copy(message.content)} title="复制回答">复制</button></Show></article>; }}</For><Show when={error()}><Collapsible.Root class="error-area" open={showErrorLogs()} onOpenChange={(details) => { setShowErrorLogs(details.open); if (details.open) void openErrorLogs(); }}><div class="error" role="alert"><span>{error()}</span><div class="error-actions"><Collapsible.Trigger class="error-log-trigger">查看错误日志<Collapsible.Indicator><ChevronDownIcon /></Collapsible.Indicator></Collapsible.Trigger><button onClick={() => { setError(''); setShowErrorLogs(false); }}>关闭</button></div></div><Collapsible.Content class="error-logs"><div class="error-logs-header"><strong>错误日志</strong><button onClick={() => setShowErrorLogs(false)}>关闭</button></div><Show when={errorLogs().length} fallback={<p class="error-logs-empty">暂无错误日志</p>}><For each={errorLogs()}>{(log) => <article class="error-log"><div class="error-log-meta"><strong>{PROVIDERS[log.provider]?.label ?? log.provider}</strong><span>{errorKindLabel(log.kind)}{log.status ? ` · HTTP ${log.status}${log.statusText ? ` ${log.statusText}` : ''}` : ''}</span><time>{new Date(log.createdAt).toLocaleString()}</time></div><p>{log.message}</p><Show when={log.details}><pre>{log.details}</pre></Show><Show when={log.endpoint || log.model || log.attempts !== undefined || log.timeoutMs}><dl class="error-log-diagnostics"><Show when={log.model}><div><dt>模型</dt><dd>{log.model}</dd></div></Show><Show when={log.endpoint}><div><dt>端点</dt><dd>{log.endpoint}</dd></div></Show><Show when={log.attempts !== undefined}><div><dt>尝试</dt><dd>{log.attempts}</dd></div></Show><Show when={log.timeoutMs}><div><dt>首 token 超时</dt><dd>{log.timeoutMs} ms</dd></div></Show><Show when={log.requestId}><div><dt>请求 ID</dt><dd>{log.requestId}</dd></div></Show></dl></Show></article>}</For></Show></Collapsible.Content></Collapsible.Root></Show></div>
-      <form class="composer" onSubmit={(event) => { event.preventDefault(); void send(); }}><textarea value={draft()} onInput={(event) => setDraft(event.currentTarget.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void send(); } }} placeholder="询问题目思路、检查代码或要求完整解法..." rows="3" disabled={busy()} /><div><span>{busy() ? '正在生成' : 'Enter 发送'}</span><button type="button" class="clear" disabled={!messages().length || busy()} onClick={() => void reset()} title="清空当前对话" aria-label="清空当前对话">清空</button><Show when={busy()} fallback={<button type="submit" disabled={!draft().trim()}>发送</button>}><button type="button" class="stop" onClick={cancel}>停止</button></Show></div></form>
+      <div class="conversation" ref={scrollArea!} onScroll={(event) => { const target = event.currentTarget; stickToBottom = target.scrollHeight - target.scrollTop - target.clientHeight < 32; }}><Show when={!messages().length}><div class="empty"><LeetCopilotLogo class="empty-icon" /><h2>从这道题开始</h2><p>我已读取题目与当前编辑器语言。你可以提问，或选择上方操作。</p></div></Show><For each={messages()}>{(message) => { const action = () => extractCodeAction(message.content); return <article class={`message ${message.role}`}><div class="message-label">{message.role === 'user' ? '你' : 'LeetCopilot'}</div><Show when={message.role === 'assistant'} fallback={<p>{message.content}</p>}><div class="answer" innerHTML={markdown(message.content || (busy() ? '正在思考...' : ''))} /><Show when={action()}>{(currentAction) => <div class="code-actions"><span class="code-kind">{actionLabel(currentAction())}</span><button onClick={() => void applyCode(currentAction())}>应用代码</button></div>}</Show><button class="copy" onClick={() => void copy(message.content)} title="复制回答">复制</button></Show></article>; }}</For><Show when={error()}><Collapsible.Root class="error-area" open={showErrorLogs()} onOpenChange={(details) => { setShowErrorLogs(details.open); if (details.open) void openErrorLogs(); }}><div class="error" role="alert"><span>{error()}</span><div class="error-actions"><Collapsible.Trigger class="error-log-trigger">查看错误日志<Collapsible.Indicator><ChevronDownIcon /></Collapsible.Indicator></Collapsible.Trigger><button onClick={() => { setError(''); setShowErrorLogs(false); }}>关闭</button></div></div><Collapsible.Content class="error-logs"><div class="error-logs-header"><strong>错误日志</strong><button onClick={() => setShowErrorLogs(false)}>关闭</button></div><Show when={errorLogs().length} fallback={<p class="error-logs-empty">暂无错误日志</p>}><For each={errorLogs()}>{(log) => <article class="error-log"><div class="error-log-meta"><strong>{PROVIDERS[log.provider]?.label ?? log.provider}</strong><span>{errorKindLabel(log.kind)}{log.status ? ` · HTTP ${log.status}${log.statusText ? ` ${log.statusText}` : ''}` : ''}</span><time>{new Date(log.createdAt).toLocaleString()}</time></div><p>{log.message}</p><Show when={log.details}><pre>{log.details}</pre></Show><Show when={log.endpoint || log.model || log.attempts !== undefined || log.timeoutMs}><dl class="error-log-diagnostics"><Show when={log.model}><div><dt>模型</dt><dd>{log.model}</dd></div></Show><Show when={log.endpoint}><div><dt>端点</dt><dd>{log.endpoint}</dd></div></Show><Show when={log.attempts !== undefined}><div><dt>尝试</dt><dd>{log.attempts}</dd></div></Show><Show when={log.timeoutMs}><div><dt>首 token 超时</dt><dd>{log.timeoutMs} ms</dd></div></Show><Show when={log.requestId}><div><dt>请求 ID</dt><dd>{log.requestId}</dd></div></Show></dl></Show></article>}</For></Show></Collapsible.Content></Collapsible.Root></Show></div>
+      <form class="composer" onSubmit={(event) => { event.preventDefault(); void send(); }}><textarea value={draft()} onInput={(event) => setDraft(event.currentTarget.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void send(); } }} placeholder="询问题目思路、检查代码或要求完整解法..." rows="3" disabled={busy()} /><div><Show when={busy()}><span>正在生成</span></Show><button type="button" class="new-conversation" disabled={busy()} onClick={() => void reset()}>新建对话</button><button type="button" class="clear" disabled={!messages().length && !error()} onClick={() => void reset()} title="清空当前对话与错误消息 (Ctrl + C)" aria-label="清空当前对话与错误消息" aria-keyshortcuts="Control+C">清空 (Ctrl + C)</button><Show when={busy()} fallback={<button type="submit" disabled={!draft().trim()} aria-keyshortcuts="Enter">发送 (Enter)</button>}><button type="button" class="stop" onClick={cancel}>停止</button></Show></div></form>
+      <Show when={!hasApiKey()}><div class="setup-overlay" role="dialog" aria-modal="true" aria-labelledby="setup-title"><div class="setup-dialog"><KeyRoundIcon class="setup-icon" aria-hidden="true" /><h2 id="setup-title">先连接 AI 平台</h2><p>请先在浏览器工具栏打开 LeetCopilot，填写至少一个平台的 API Key。验证成功后即可开始使用。</p><div class="setup-hint">API Key 仅保存在本地扩展存储中</div></div></div></Show>
     </div>
-    <Show when={!open()}><button class="reopen" onClick={() => setOpen(true)} title="打开 LeetLens" aria-label="打开 LeetLens"><LeetLensLogo class="reopen-logo" /></button></Show>
+    <Show when={!open()}><button class="reopen" onClick={() => setOpen(true)} title="打开 LeetCopilot" aria-label="打开 LeetCopilot"><LeetCopilotLogo class="reopen-logo" /></button></Show>
     </div>
   </aside>;
 }
 
 const host = document.createElement('div');
-host.id = 'leetlens-root';
+host.id = 'leetcopilot-root';
 const mountHost = () => {
   const layout = document.querySelector<HTMLElement>('#qd-content');
   if (layout && host.parentElement !== layout) layout.append(host);

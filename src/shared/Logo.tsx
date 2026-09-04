@@ -4,9 +4,9 @@ type LogoProps = {
 };
 
 const logoSrc = typeof chrome !== 'undefined' && chrome.runtime?.getURL
-  ? chrome.runtime.getURL('leetlens-logo.png')
-  : '/leetlens-logo.png';
+  ? chrome.runtime.getURL('leetcopilot-logo.png')
+  : '/leetcopilot-logo.png';
 
-export function LeetLensLogo(props: LogoProps) {
+export function LeetCopilotLogo(props: LogoProps) {
   return <img class={props.class} src={logoSrc} alt={props.title ?? ''} aria-hidden={props.title ? undefined : true} />;
 }

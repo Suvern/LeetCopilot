@@ -8,7 +8,7 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     emptyOutDir: false,
-    lib: { entry: resolve(__dirname, 'src/content/main.tsx'), name: 'LeetLensContent', formats: ['iife'], fileName: () => 'assets/content.js' },
+    lib: { entry: resolve(__dirname, 'src/content/main.tsx'), name: 'LeetCopilotContent', formats: ['iife'], fileName: () => 'assets/content.js' },
     rollupOptions: { output: { assetFileNames: (asset) => asset.name?.endsWith('.css') ? 'assets/content.css' : 'assets/[name]-[hash][extname]' } },
   },
 });

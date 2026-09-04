@@ -20,5 +20,5 @@ export interface ErrorLog {
   requestId?: string;
 }
 export interface Settings { provider: Provider; apiKey: string; apiKeys: Record<Provider, string>; model: string; theme: Theme | 'auto'; hideNativeLeet: boolean; }
-export type BackgroundRequest = { type: 'chat'; requestId: string; problem: ProblemContext; messages: ChatMessage[] } | { type: 'cancel'; requestId: string } | { type: 'read-editor' } | { type: 'apply-code'; code: string; startLine?: number; endLine?: number };
-export type BackgroundEvent = { type: 'delta'; requestId: string; text: string } | { type: 'done'; requestId: string } | { type: 'error'; requestId: string; message: string };
+export type BackgroundRequest = { type: 'chat'; requestId: string; problem: ProblemContext; messages: ChatMessage[] } | { type: 'cancel'; requestId: string } | { type: 'read-editor' } | { type: 'apply-code'; code: string; startLine?: number; endLine?: number } | { type: 'test-key'; provider: Provider; apiKey: string; model: string };
+export type BackgroundEvent = { type: 'delta'; requestId: string; text: string } | { type: 'done'; requestId: string } | { type: 'error'; requestId: string; message: string; errorLogId?: string };
