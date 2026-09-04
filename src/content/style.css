@@ -55,7 +55,11 @@ button { font:inherit; }
 .error { display:flex; align-items:center; justify-content:space-between; gap:8px; margin:0 12px 10px; border:1px solid #e5b8b3; border-radius:4px; padding:8px 10px; color:#a33d35; background:#fff6f5; font-size:12px; }
 .error span { min-width:0; overflow-wrap:anywhere; }
 .error-actions { display:flex; flex:0 0 auto; gap:2px; }
-.error-actions button:first-child { color:#a33d35; }
+.error-actions button:first-child,.error-log-trigger { color:#a33d35; }
+.error-log-trigger { display:flex; align-items:center; gap:3px; border:0; border-radius:4px; padding:4px 7px; background:transparent; cursor:pointer; }
+.error-log-trigger:hover { color:#7e2c26; background:#fbe9e7; }
+.error-log-trigger svg { width:13px; transition:transform 160ms ease; }
+.error-log-trigger[data-state="open"] svg { transform:rotate(180deg); }
 .error-logs { margin:-2px 12px 10px; border:1px solid var(--ll-line); border-radius:4px; padding:9px 10px; background:var(--ll-bg); }
 .error-logs-header { display:flex; align-items:center; justify-content:space-between; color:var(--ll-fg); font-size:12px; }
 .error-log { margin-top:8px; border:1px solid #e5b8b3; border-radius:4px; padding:7px 8px; color:#5f302c; background:#fff8f7; font-size:11px; }

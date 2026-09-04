@@ -1,9 +1,18 @@
 import type { ChatMessage, ErrorLog, Provider, Settings } from './types';
-export const DEFAULT_SETTINGS: Settings = { provider: 'deepseek', apiKey: __LEETLENS_DEV_API_KEY__, apiKeys: { deepseek: __LEETLENS_DEV_API_KEY__, qwen: '' }, model: 'deepseek-v4-flash', theme: 'auto', hideNativeLeet: false };
+import { PROVIDERS } from './providers';
+
+export const DEFAULT_SETTINGS: Settings = {
+  provider: 'deepseek',
+  apiKey: '',
+  apiKeys: { deepseek: '', qwen: '' },
+  model: PROVIDERS.deepseek.defaultModel,
+  theme: 'auto',
+  hideNativeLeet: false,
+};
 const settingsKey = 'leetlens:settings';
 const errorLogsKey = 'leetlens:error-logs';
 const historyKey = (id: string) => `leetlens:history:${id}`;
-const defaultModel = (provider: Provider) => provider === 'qwen' ? 'qwen-plus' : 'deepseek-v4-flash';
+const defaultModel = (provider: Provider) => PROVIDERS[provider].defaultModel;
 export async function getSettings(): Promise<Settings> {
   const stored = (await chrome.storage.local.get(settingsKey))[settingsKey] as Partial<Settings> | undefined;
   const provider = stored?.provider === 'qwen' ? 'qwen' : 'deepseek';

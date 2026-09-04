@@ -1,16 +1,12 @@
 import { appendErrorLog, getSettings } from '../shared/storage';
 import { systemPrompt, userPrompt } from '../shared/prompt';
-import type { BackgroundRequest, BackgroundEvent, Provider } from '../shared/types';
+import { PROVIDERS } from '../shared/providers';
+import type { BackgroundRequest, BackgroundEvent } from '../shared/types';
 
 const controllers = new Map<string, AbortController>();
 const cancelledRequests = new Set<string>();
 const FIRST_TOKEN_TIMEOUT_MS = 10_000;
 const MAX_FIRST_TOKEN_ATTEMPTS = 2;
-type ProviderConfig = { label: string; endpoint: string; defaultModel: string };
-const providerConfig: Record<Provider, ProviderConfig> = {
-  deepseek: { label: 'DeepSeek', endpoint: 'https://api.deepseek.com/chat/completions', defaultModel: 'deepseek-v4-flash' },
-  qwen: { label: '千问', endpoint: 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions', defaultModel: 'qwen-plus' },
-};
 
 chrome.runtime.onMessage.addListener((request: BackgroundRequest, sender, sendResponse) => {
   if (request.type === 'cancel') { cancelledRequests.add(request.requestId); controllers.get(request.requestId)?.abort(); controllers.delete(request.requestId); return; }
@@ -93,7 +89,7 @@ class FirstTokenTimeoutError extends Error {
   constructor() { super('FIRST_TOKEN_TIMEOUT'); }
 }
 
-async function streamAttempt(request: Extract<BackgroundRequest, { type: 'chat' }>, tabId: number | undefined, settings: Awaited<ReturnType<typeof getSettings>>, config: ProviderConfig) {
+async function streamAttempt(request: Extract<BackgroundRequest, { type: 'chat' }>, tabId: number | undefined, settings: Awaited<ReturnType<typeof getSettings>>, config: (typeof PROVIDERS)[keyof typeof PROVIDERS]) {
   const controller = new AbortController();
   controllers.set(request.requestId, controller);
   let timedOut = false;
@@ -137,7 +133,7 @@ async function streamAttempt(request: Extract<BackgroundRequest, { type: 'chat' 
 
 async function streamChat(request: Extract<BackgroundRequest, { type: 'chat' }>, tabId?: number) {
   const settings = await getSettings();
-  const config = providerConfig[settings.provider];
+  const config = PROVIDERS[settings.provider];
   if (!settings.apiKey.trim()) return reportError(settings, request.requestId, tabId, `请先在 LeetLens 设置中填写${config.label} API Key。`);
   cancelledRequests.delete(request.requestId);
   try {

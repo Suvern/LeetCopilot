@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build --config vite.config.ts && vite build --config vite.content.config.ts",
+    "package": "npm run build && node scripts/pack-extension.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "vitest run",
@@ -13,8 +14,10 @@
     "test:e2e": "node tests/browser-smoke.mjs && node tests/stream-smoke.mjs"
   },
   "dependencies": {
+    "@ark-ui/solid": "^5.39.1",
     "@solidjs/router": "^0.15.4",
     "dompurify": "^3.2.6",
+    "lucide-solid": "^0.468.0",
     "marked": "^16.1.2",
     "solid-js": "^1.9.9"
   },
@@ -24,6 +27,7 @@
     "@types/node": "^24.3.0",
     "@typescript-eslint/eslint-plugin": "^8.42.0",
     "@typescript-eslint/parser": "^8.42.0",
+    "archiver": "^7.0.1",
     "eslint": "^9.34.0",
     "playwright": "^1.62.1",
     "typescript": "^5.9.2",
