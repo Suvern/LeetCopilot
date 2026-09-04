@@ -7,8 +7,9 @@ import { createSignal, For, Show } from 'solid-js';
 import { Portal, render } from 'solid-js/web';
 import { LeetCopilotLogo } from '../shared/Logo';
 import { PROVIDERS, PROVIDER_OPTIONS } from '../shared/providers';
-import { DEFAULT_SETTINGS, getSettings, savePreferences, saveSettings } from '../shared/storage';
-import type { Provider } from '../shared/types';
+import { getSettings, savePreferences, saveSettings } from '../shared/storage';
+import { DEFAULT_SETTINGS } from '../shared/settings';
+import type { Provider } from '../shared/domain';
 import './style.css';
 
 const providerCollection = createListCollection({ items: PROVIDER_OPTIONS });

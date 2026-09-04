@@ -1,4 +1,4 @@
-import type { Provider } from './types';
+import type { Provider } from './domain';
 
 export type ProviderConfig = {
   label: string;

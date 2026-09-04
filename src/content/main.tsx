@@ -10,7 +10,8 @@ import { LeetCopilotLogo } from '../shared/Logo';
 import { PROVIDERS } from '../shared/providers';
 import type { CodeAction } from '../shared/parse';
 import { shortcuts } from '../shared/prompt';
-import type { BackgroundEvent, ChatMessage, ErrorLog, ProblemContext, Theme } from '../shared/types';
+import type { BackgroundEvent } from '../shared/messages';
+import type { ChatMessage, ErrorLog, ProblemContext, Theme } from '../shared/domain';
 import './style.css';
 
 const uid = () => crypto.randomUUID();

@@ -1,25 +1,11 @@
-import type { ChatMessage, ErrorLog, Provider, Settings } from './types';
-import { PROVIDERS } from './providers';
-
-export const DEFAULT_SETTINGS: Settings = {
-  provider: 'deepseek',
-  apiKey: '',
-  apiKeys: { deepseek: '', qwen: '' },
-  model: PROVIDERS.deepseek.defaultModel,
-  theme: 'auto',
-  hideNativeLeet: false,
-};
+import type { ChatMessage, ErrorLog, Settings } from './domain';
+import { normalizeSettings, type StoredSettings } from './settings';
 const settingsKey = 'leet-copilot:settings';
 const errorLogsKey = 'leet-copilot:error-logs';
 const historyKey = (id: string) => `leet-copilot:history:${id}`;
-const defaultModel = (provider: Provider) => PROVIDERS[provider].defaultModel;
 export async function getSettings(): Promise<Settings> {
   const values = await chrome.storage.local.get(settingsKey);
-  const stored = values[settingsKey] as Partial<Settings> | undefined;
-  const provider = stored?.provider === 'qwen' ? 'qwen' : 'deepseek';
-  const apiKeys = { ...DEFAULT_SETTINGS.apiKeys, ...(stored?.apiKeys ?? {}) };
-  if (!stored?.apiKeys && stored?.apiKey) apiKeys[provider] = stored.apiKey;
-  return { ...DEFAULT_SETTINGS, ...stored, provider, apiKeys, apiKey: stored?.apiKey ?? apiKeys[provider], model: stored?.model || defaultModel(provider) };
+  return normalizeSettings(values[settingsKey] as StoredSettings | undefined);
 }
 export async function saveSettings(settings: Settings) {
   await chrome.storage.local.set({ [settingsKey]: { ...settings, apiKey: settings.apiKey.trim(), apiKeys: { ...settings.apiKeys, [settings.provider]: settings.apiKey.trim() } } });

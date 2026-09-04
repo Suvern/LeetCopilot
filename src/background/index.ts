@@ -1,7 +1,10 @@
 import { appendErrorLog, getSettings } from '../shared/storage';
 import { shortcutInstruction, systemPrompt, userPrompt } from '../shared/prompt';
 import { PROVIDERS } from '../shared/providers';
-import type { BackgroundRequest, BackgroundEvent, ErrorKind } from '../shared/types';
+import { parseSseEvent } from '../shared/stream';
+import { buildKeyTestBody, buildStreamingBody } from '../shared/provider-protocol';
+import type { BackgroundEvent, BackgroundRequest, ChatRequest, EditorResponse, KeyTestRequest, KeyTestResponse } from '../shared/messages';
+import type { ErrorKind } from '../shared/domain';
 
 const controllers = new Map<string, AbortController>();
 const cancelledRequests = new Set<string>();
@@ -36,7 +39,7 @@ chrome.runtime.onMessage.addListener((request: BackgroundRequest, sender, sendRe
   return true;
 });
 
-async function testProviderKey(provider: Extract<BackgroundRequest, { type: 'test-key' }>['provider'], apiKey: string, model: string) {
+async function testProviderKey(provider: KeyTestRequest['provider'], apiKey: string, model: string): Promise<KeyTestResponse> {
   const config = PROVIDERS[provider];
   const key = apiKey.trim();
   if (!key) return { ok: false, error: '请先填写 API Key。' };
@@ -47,7 +50,7 @@ async function testProviderKey(provider: Extract<BackgroundRequest, { type: 'tes
       method: 'POST',
       signal: controller.signal,
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-      body: JSON.stringify({ model: model.trim() || config.defaultModel, stream: false, max_tokens: 1, messages: [{ role: 'user', content: 'Reply with OK.' }] }),
+      body: buildKeyTestBody(model.trim() || config.defaultModel),
     });
     if (!response.ok) {
       const detail = (await response.text()).replaceAll(key, '[REDACTED]');
@@ -62,7 +65,7 @@ async function testProviderKey(provider: Extract<BackgroundRequest, { type: 'tes
   }
 }
 
-async function readEditorCode(tabId: number | undefined) {
+async function readEditorCode(tabId: number | undefined): Promise<EditorResponse> {
   if (tabId === undefined) return { ok: false, error: '找不到当前页面。' };
   try {
     const results = await chrome.scripting.executeScript({
@@ -76,13 +79,13 @@ async function readEditorCode(tabId: number | undefined) {
         return typeof code === 'string' ? { ok: true, code } : { ok: false, error: '找不到 Monaco 代码编辑器。' };
       },
     });
-    return results[0]?.result ?? { ok: false, error: '无法读取代码编辑器。' };
+    return normalizeEditorResponse(results[0]?.result, '无法读取代码编辑器。');
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : '无法读取代码编辑器。' };
   }
 }
 
-async function applyCode(code: string, startLine: number | undefined, endLine: number | undefined, tabId: number | undefined) {
+async function applyCode(code: string, startLine: number | undefined, endLine: number | undefined, tabId: number | undefined): Promise<EditorResponse> {
   if (tabId === undefined) return { ok: false, error: '找不到当前页面。' };
   try {
     const results = await chrome.scripting.executeScript({
@@ -106,10 +109,17 @@ async function applyCode(code: string, startLine: number | undefined, endLine: n
       },
       args: startLine === undefined || endLine === undefined ? [code] : [code, startLine, endLine],
     });
-    return results[0]?.result ?? { ok: false, error: '无法更新代码编辑器。' };
+    return normalizeEditorResponse(results[0]?.result, '无法更新代码编辑器。');
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : '无法注入编辑器更新。' };
   }
+}
+
+function normalizeEditorResponse(value: unknown, fallback: string): EditorResponse {
+  if (!value || typeof value !== 'object') return { ok: false, error: fallback };
+  const result = value as { ok?: unknown; code?: unknown; error?: unknown };
+  if (result.ok === true) return { ok: true, ...(typeof result.code === 'string' ? { code: result.code } : {}) };
+  return { ok: false, error: typeof result.error === 'string' ? result.error : fallback };
 }
 
 async function send(event: BackgroundEvent, tabId?: number) {
@@ -166,7 +176,7 @@ class ProviderRequestError extends Error {
   }
 }
 
-async function streamAttempt(request: Extract<BackgroundRequest, { type: 'chat' }>, tabId: number | undefined, settings: Awaited<ReturnType<typeof getSettings>>, config: (typeof PROVIDERS)[keyof typeof PROVIDERS]) {
+async function streamAttempt(request: ChatRequest, tabId: number | undefined, settings: Awaited<ReturnType<typeof getSettings>>, config: (typeof PROVIDERS)[keyof typeof PROVIDERS]) {
   const controller = new AbortController();
   controllers.set(request.requestId, controller);
   const startedAt = performance.now();
@@ -177,7 +187,15 @@ async function streamAttempt(request: Extract<BackgroundRequest, { type: 'chat' 
   let timeout = setTimeout(() => { timedOut = true; controller.abort(); }, RESPONSE_TIMEOUT_MS);
   const stopTimeout = () => { clearTimeout(timeout); };
   try {
-    const response = await fetch(config.endpoint, { method: 'POST', signal: controller.signal, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${settings.apiKey.trim()}` }, body: JSON.stringify({ model: settings.model.trim() || config.defaultModel, stream: true, messages: [{ role: 'system', content: `${systemPrompt}\n\n${userPrompt(request.problem, '请使用以下题目上下文回答后续对话。')}` }, ...request.messages.map((message) => ({ role: message.role, content: message.role === 'user' ? shortcutInstruction(message.content) : message.content }))] }) });
+    const response = await fetch(config.endpoint, {
+      method: 'POST',
+      signal: controller.signal,
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${settings.apiKey.trim()}` },
+      body: buildStreamingBody(settings.model.trim() || config.defaultModel, [
+        { role: 'system', content: `${systemPrompt}\n\n${userPrompt(request.problem, '请使用以下题目上下文回答后续对话。')}` },
+        ...request.messages.map((message) => ({ role: message.role, content: message.role === 'user' ? shortcutInstruction(message.content) : message.content })),
+      ]),
+    });
     if (!response.ok) {
       stopTimeout();
       const detail = await response.text();
@@ -204,16 +222,14 @@ async function streamAttempt(request: Extract<BackgroundRequest, { type: 'chat' 
         const dataLine = line.trim(); if (!dataLine.startsWith('data:')) continue;
         const data = dataLine.slice(5).trim(); if (data === '[DONE]') continue;
         try {
-          const payload = JSON.parse(data) as { choices?: Array<{ delta?: { content?: string; reasoning_content?: string } }>; error?: unknown };
-          if (payload.error) throw new ProviderRequestError(`${config.label} 返回了错误响应。`, { kind: 'stream', details: JSON.stringify(payload.error, null, 2) });
-          const delta = payload.choices?.[0]?.delta;
-          const text = delta?.content;
-          if (delta && Object.keys(delta).length > 0) {
+          const event = parseSseEvent(data);
+          if (event.kind === 'error') throw new ProviderRequestError(`${config.label} 返回了错误响应。`, { kind: 'stream', details: event.details });
+          if (event.kind === 'delta') {
             firstStreamEventReceived = true;
             // Providers may begin an SSE response with role metadata or reasoning_content.
             // Either proves the stream has started; only visible content reaches the panel.
             stopTimeout();
-            if (typeof text === 'string' && text.length > 0) await send({ type: 'delta', requestId: request.requestId, text }, tabId);
+            if (event.content.length > 0) await send({ type: 'delta', requestId: request.requestId, text: event.content }, tabId);
           }
         } catch (error) {
           if (error instanceof ProviderRequestError) throw error;
@@ -245,7 +261,7 @@ async function streamAttempt(request: Extract<BackgroundRequest, { type: 'chat' 
   }
 }
 
-async function streamChat(request: Extract<BackgroundRequest, { type: 'chat' }>, tabId?: number) {
+async function streamChat(request: ChatRequest, tabId?: number) {
   const settings = await getSettings();
   const config = PROVIDERS[settings.provider];
   const model = settings.model.trim() || config.defaultModel;

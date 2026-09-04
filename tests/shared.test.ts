@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { extractCodeAction, extractCodeBlock, normalizeLanguage, problemId, parseSseLine, replaceLines } from '../src/shared/parse';
+import { extractCodeAction, extractCodeBlock, normalizeLanguage, problemId, replaceLines } from '../src/shared/parse';
+import { parseSseEvent, parseSseLine } from '../src/shared/stream';
+import { buildKeyTestBody, buildStreamingBody } from '../src/shared/provider-protocol';
 import { buildContext, shortcutInstruction, userPrompt } from '../src/shared/prompt';
-import type { ProblemContext } from '../src/shared/types';
+import { normalizeSettings } from '../src/shared/settings';
+import type { ProblemContext } from '../src/shared/domain';
 
 const problem: ProblemContext = { id: 'two-sum', title: '两数之和', difficulty: '简单', description: '找出目标和', examples: '示例', constraints: '限制', tags: [], language: 'Python', code: 'print(1)', url: 'https://leetcode.cn/problems/two-sum/' };
 describe('shared helpers', () => {
@@ -10,6 +13,18 @@ describe('shared helpers', () => {
   it('parses streaming content deltas', () => expect(parseSseLine('data: {"choices":[{"delta":{"content":"你好"}}]}')).toBe('你好'));
   it('parses streaming content after reasoning deltas', () => expect(parseSseLine('data: {"choices":[{"delta":{"reasoning_content":"分析中","content":""}}]}')).toBe(''));
   it('ignores non-data and done lines', () => { expect(parseSseLine('event: message')).toBeNull(); expect(parseSseLine('data: [DONE]')).toBeNull(); });
+  it('distinguishes stream errors from malformed lines', () => {
+    expect(parseSseEvent('{"error":{"message":"无效 Key"}}')).toEqual({ kind: 'error', details: '{\n  "message": "无效 Key"\n}' });
+    expect(parseSseEvent('{malformed')).toEqual({ kind: 'ignore' });
+  });
+  it('builds provider request bodies without credentials', () => {
+    expect(JSON.parse(buildKeyTestBody('qwen-plus'))).toMatchObject({ model: 'qwen-plus', stream: false, max_tokens: 1 });
+    expect(JSON.parse(buildStreamingBody('deepseek-v4-flash', [{ role: 'system', content: '系统' }]))).toEqual({ model: 'deepseek-v4-flash', stream: true, messages: [{ role: 'system', content: '系统' }] });
+  });
+  it('normalizes legacy settings into the current shape', () => {
+    expect(normalizeSettings({ provider: 'qwen', apiKey: 'legacy-key' })).toMatchObject({ provider: 'qwen', apiKey: 'legacy-key', apiKeys: { qwen: 'legacy-key' } });
+    expect(normalizeSettings({ provider: 'deepseek', apiKeys: { qwen: 'qwen-key' } })).toMatchObject({ provider: 'deepseek', apiKey: '', apiKeys: { qwen: 'qwen-key' } });
+  });
   it('includes problem context in user prompts', () => expect(userPrompt(problem, '分析')).toContain('当前代码'));
   it('uses the selected language in context', () => expect(buildContext(problem)).toContain('语言：Python'));
   it('keeps analysis shortcuts code-free', () => {
