@@ -4,10 +4,21 @@
   "private": true,
   "type": "module",
   "packageManager": "pnpm@11.24.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Suvern/LeetCopilot.git"
+  },
+  "homepage": "https://github.com/Suvern/LeetCopilot#readme",
+  "bugs": {
+    "url": "https://github.com/Suvern/LeetCopilot/issues"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build --config vite.config.ts && vite build --config vite.content.config.ts",
     "package": "pnpm run build && node scripts/pack-extension.mjs",
+    "check:version": "node scripts/check-version.mjs",
+    "prebuild": "pnpm run check:version",
+    "release": "node scripts/prepare-release.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "pnpm run test:unit",

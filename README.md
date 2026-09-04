@@ -1,29 +1,52 @@
 # LeetCopilot
 
-LeetCopilot is an open-source Chrome Manifest V3 extension that adds a Chinese AI coding workspace beside the editor on `leetcode.cn` problem pages.
+LeetCopilot 是一个免费、开源的 LeetCode AI 辅助工具
 
-## Features
+只需要填入你的 API Key 即可工作，现支持 [DeepSeek](https://platform.deepseek.com/) 和 [千问](https://www.qianwenai.com/)
 
-- Ask questions with the current problem, language, and editor code as context.
-- Choose DeepSeek or Qwen-compatible providers and stream Markdown answers.
-- Copy answers or apply complete solutions and line-scoped unified diffs to Monaco.
-- Keep recent conversations and diagnostics locally per problem.
-- Resize, collapse, theme, and hide the native LeetCode assistant panel.
+> 暂时仅支持 `leetcode.cn` 中文站
+## 功能
 
-LeetCopilot has no backend, telemetry, LeetCode login, submission automation, or code execution. API keys are entered in the popup, stored in Chrome local extension storage, and sent directly to the selected provider.
+- 基于当前题目、编程语言和当前代码提问，助手栏会流式输出思路和解法
+- 隐藏 LeetCode 需要付费的 "Leet" 助手
+- 支持深色模式
 
-## Install From Source
+LeetCopilot 没有后端和服务器，在弹窗中填写 API 密钥后，密钥会保存在 Chrome 的扩展本地存储中，无需担心泄露
 
-Requirements: Node.js 20 or newer.
+## 预览
+
+| 工作区 | 设置 |
+| --- | --- |
+| <img src="docs/media/workspace.png" alt="LeetCopilot 在 LeetCode 编辑器旁的工作区" width="640" /> | <img src="docs/media/settings.png" alt="LeetCopilot 设置弹窗" width="320" /> |
+| <img src="docs/media/assistant-workflow.gif" alt="LeetCopilot 助手工作流程" width="640" /> | <img src="docs/media/popup-settings.gif" alt="LeetCopilot 设置流程" width="320" /> |
+
+## 安装
+
+### 从 Release 安装
+
+1. 前往 [Releases 页面](https://github.com/Suvern/LeetCopilot/releases)，下载最新版本的压缩包
+2. 解压下载的压缩包
+3. 打开 Chrome 的扩展程序设置页面：`chrome://extensions`
+4. 开启右上角的“开发者模式”
+5. 点击“加载已解压的扩展程序”
+6. 选择刚才解压出来的扩展目录
+
+安装完成后，在支持的题目页面打开 LeetCopilot 弹窗，并配置服务商 API 密钥
+
+### 从源码安装
+
+需要 Node.js 20 或更高版本
 
 ```bash
-pnpm install --frozen-lockfile
+pnpm install
 pnpm run build
 ```
 
-Then open `chrome://extensions`, enable **Developer mode**, choose **Load unpacked**, and select the generated `dist/` directory. Open the LeetCopilot popup on a supported problem page and configure a provider API key.
+1. 打开 `chrome://extensions`，开启“开发者模式”，点击“加载已解压的扩展程序”，选择生成的 `dist/` 目录
 
-## Development
+2. 在题目页面打开 LeetCopilot 弹窗，并配置服务商 API 密钥
+
+## 开发
 
 ```bash
 pnpm run typecheck
@@ -33,22 +56,39 @@ pnpm run build
 pnpm run package
 ```
 
-`pnpm run package` creates `release/LeetCopilot-<version>.zip`. Release archives contain no API keys or local environment files.
+`pnpm run package` 会生成 `release/LeetCopilot-<version>.zip`
 
-## Scope
+## 发布
 
-The first release supports public `leetcode.cn` problem pages and the C, C++, Java, JavaScript, and Python editor languages. LeetCode DOM changes may require updates to context extraction.
+准备新版本时，先用命令同步 `package.json` 和 Chrome Manifest 中的版本号：
+
+```bash
+pnpm release 0.1.0
+pnpm run check:version
+pnpm run package
+```
+
+确认检查通过后提交并推送对应的 tag：
+
+```bash
+git add package.json public/manifest.json
+git commit -m "chore: release v0.1.0"
+git tag v0.1.0
+git push origin main v0.1.0
+```
+
+推送 `v*` tag 后，GitHub Actions 会执行检查、构建并创建 GitHub Release。
+
+## 支持语言
+
+支持 `C`、`C++`、`Java`、`JavaScript` 和 `Python`
 
 ## TODO
 
-- Support more coding platforms, including additional LeetCode surfaces.
-- Add editor right-click context-menu actions for common LeetCopilot requests.
-- Expand editor and language compatibility as platform integrations mature.
+- 支持更多编程语言
+- 为常见的 LeetCopilot 请求增加编辑器右键菜单操作
+- 支持国际站
 
-## Security
-
-Please do not include API keys, cookies, private code, or authorization headers in issues. See [SECURITY.md](SECURITY.md) for reporting guidance.
-
-## License
+## 许可证
 
 [MIT](LICENSE)
