@@ -5,55 +5,21 @@ import { render } from 'solid-js/web';
 import DOMPurify from 'dompurify';
 import { marked } from 'marked';
 import { clearErrorLogs, clearHistory, getErrorLogs, getHistory, getSettings, saveHistory } from '../shared/storage';
-import { cleanText, extractCodeAction, normalizeLanguage, problemId } from '../shared/parse';
+import { extractCodeAction } from '../shared/parse';
 import { LeetCopilotLogo } from '../shared/Logo';
 import { PROVIDERS } from '../shared/providers';
 import type { CodeAction } from '../shared/parse';
 import { shortcuts } from '../shared/prompt';
 import type { BackgroundEvent } from '../shared/messages';
-import type { ChatMessage, ErrorLog, ProblemContext, Theme } from '../shared/domain';
+import type { ChatMessage, ErrorLog, Theme } from '../shared/domain';
+import { extractContext, extractContextWithEditor } from './context-extractor';
+import { host, mountHost, syncLayout } from './layout';
 import './style.css';
 
 const uid = () => crypto.randomUUID();
 const markdown = (value: string) => DOMPurify.sanitize(marked.parse(value, { async: false }) as string);
 const actionLabel = (action: CodeAction) => action.kind === 'full' ? '完整代码' : '局部更新';
 const errorKindLabel = (kind: ErrorLog['kind']) => ({ configuration: '配置错误', timeout: '首 token 超时', http: 'HTTP 错误', network: '网络错误', stream: '流响应错误', unknown: '未知错误' }[kind ?? 'unknown']);
-
-function selectedText(selectors: string[]) {
-  for (const selector of selectors) {
-    const element = document.querySelector<HTMLElement>(selector);
-    if (element?.innerText) return cleanText(element.innerText);
-  }
-  return '';
-}
-
-function extractContext(): ProblemContext {
-  const workbench = (document.querySelector('#qd-content') ?? document.querySelector('main') ?? document.body).cloneNode(true) as HTMLElement;
-  workbench.querySelector('#leetcopilot-root')?.remove();
-  const heading = selectedText(['h1', '[data-cy="question-title"]']);
-  const bodyText = cleanText(workbench.innerText).slice(0, 18000);
-  const title = heading || document.title.replace(/[-|].*/, '').trim() || '当前题目';
-  const difficulty = selectedText(['[diff="easy"]', '[diff="medium"]', '[diff="hard"]']) || (bodyText.match(/简单|中等|困难/)?.[0] ?? '未知');
-  const languageLabel = [...document.querySelectorAll<HTMLElement>('button, [role="button"], [role="combobox"]')]
-    .map((element) => cleanText(element.innerText || element.textContent))
-    .find((value) => /^(C\+\+|C|Java|JavaScript|TypeScript|Python|Python3)$/.test(value))
-    || selectedText(['[data-cy="lang-select"]', '.ant-select-selection-item'])
-    || 'JavaScript';
-  const editor = [...document.querySelectorAll<HTMLTextAreaElement>('textarea.inputarea, textarea')]
-    .find((element) => element.value.trim() && element.offsetParent !== null)
-    ?? document.querySelector<HTMLTextAreaElement>('[data-cy="code-area"]');
-  return { id: problemId(), title, difficulty, description: bodyText, examples: '', constraints: '', tags: [], language: normalizeLanguage(languageLabel), code: editor?.value ?? '', url: location.href };
-}
-
-async function extractContextWithEditor(): Promise<ProblemContext> {
-  const context = extractContext();
-  try {
-    const response = await chrome.runtime.sendMessage({ type: 'read-editor' });
-    return response?.ok && typeof response.code === 'string' ? { ...context, code: response.code } : context;
-  } catch {
-    return context;
-  }
-}
 
 function App() {
   const [context, setContext] = createSignal(extractContext());
@@ -287,23 +253,4 @@ function App() {
   </aside>;
 }
 
-const host = document.createElement('div');
-host.id = 'leetcopilot-root';
-const mountHost = () => {
-  const layout = document.querySelector<HTMLElement>('#qd-content');
-  if (layout && host.parentElement !== layout) layout.append(host);
-};
-const syncLayout = () => {
-  const layout = host.parentElement as HTMLElement | null;
-  const workbench = layout?.querySelector<HTMLElement>(':scope > .flexlayout__layout');
-  if (!layout || !workbench) return;
-  const sidebarWidth = host.offsetWidth || 408;
-  layout.style.position = 'relative';
-  workbench.style.position = 'absolute';
-  workbench.style.top = '0'; workbench.style.left = '0'; workbench.style.bottom = '0'; workbench.style.right = `${sidebarWidth}px`; workbench.style.width = 'auto';
-  host.style.position = 'absolute'; host.style.top = '0'; host.style.right = '0'; host.style.bottom = '0'; host.style.height = '100%';
-};
-mountHost();
-if (!host.parentElement) document.documentElement.append(host);
-syncLayout();
 render(() => <App />, host);
