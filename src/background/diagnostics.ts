@@ -1,4 +1,5 @@
 import { appendErrorLog } from '../shared/storage';
+import { getActiveAccount } from '../shared/settings';
 import type { ErrorKind, Settings } from '../shared/domain';
 import type { BackgroundEvent } from '../shared/messages';
 
@@ -30,12 +31,13 @@ export function redactSecrets(value: string, apiKey: string) {
 }
 
 export async function reportError(settings: Settings, requestId: string, tabId: number | undefined, diagnostic: ErrorDiagnostic, send: (event: BackgroundEvent, tabId?: number) => Promise<void>) {
-  const redact = (value: string | undefined) => value ? redactSecrets(value, settings.apiKey) : value;
+  const account = getActiveAccount(settings);
+  const redact = (value: string | undefined) => value ? redactSecrets(value, account?.apiKey ?? settings.apiKey) : value;
   const safeMessage = redact(diagnostic.message) ?? '请求失败，请重试。';
   let log;
   try {
     log = await appendErrorLog({
-      provider: settings.provider,
+      provider: settings.activeProviderId,
       message: safeMessage,
       kind: diagnostic.kind,
       details: redact(diagnostic.details),

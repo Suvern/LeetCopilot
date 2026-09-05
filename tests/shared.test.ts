@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { extractCodeAction, extractCodeBlock, normalizeLanguage, problemId, replaceLines } from '../src/shared/parse';
 import { parseSseEvent, parseSseLine } from '../src/shared/stream';
-import { buildKeyTestBody, buildStreamingBody } from '../src/shared/provider-protocol';
+import { buildKeyTestBody, buildStreamingBody, getProviderAdapter } from '../src/shared/provider-protocol';
+import { getProviderPreset, PROVIDERS } from '../src/shared/providers';
+import { testProviderKey } from '../src/background/provider-client';
 import { buildContext, shortcutInstruction, userPrompt } from '../src/shared/prompt';
 import { getActiveAccount, normalizeSettings } from '../src/shared/settings';
 import { getSettings, saveSettings } from '../src/shared/storage';
@@ -23,6 +25,26 @@ describe('shared helpers', () => {
   it('builds provider request bodies without credentials', () => {
     expect(JSON.parse(buildKeyTestBody('qwen-plus'))).toMatchObject({ model: 'qwen-plus', stream: false, max_tokens: 1 });
     expect(JSON.parse(buildStreamingBody('deepseek-v4-flash', [{ role: 'system', content: '系统' }]))).toEqual({ model: 'deepseek-v4-flash', stream: true, messages: [{ role: 'system', content: '系统' }] });
+  });
+  it('registers providers with an explicit protocol and stable id', () => {
+    expect(getProviderPreset('deepseek')).toMatchObject({ id: 'deepseek', protocol: 'openai-chat' });
+    expect(PROVIDERS.qwen.protocol).toBe('openai-chat');
+    expect(getProviderPreset('missing-provider')).toBeUndefined();
+  });
+  it('builds and parses OpenAI Chat adapter events', () => {
+    const adapter = getProviderAdapter('openai-chat');
+    expect(adapter).toBeDefined();
+    expect(adapter?.buildHeaders('secret')).toEqual({ 'Content-Type': 'application/json', Authorization: 'Bearer secret' });
+    expect(adapter?.parseStreamEvent('{"choices":[{"delta":{"content":"hello"}}]}')).toEqual({ kind: 'delta', content: 'hello' });
+    expect(adapter?.parseStreamEvent('[DONE]')).toEqual({ kind: 'done' });
+    expect(adapter?.parseStreamEvent('{"error":{"message":"bad key"}}')).toEqual({ kind: 'error', details: '{\n  "message": "bad key"\n}' });
+  });
+  it('does not fetch for an empty or unregistered provider key test', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(testProviderKey('deepseek', '  ', '')).resolves.toEqual({ ok: false, error: '请先填写 API Key。' });
+    await expect(testProviderKey('missing-provider', 'key', '')).resolves.toEqual({ ok: false, error: '未注册的 provider：missing-provider。' });
+    expect(fetchMock).not.toHaveBeenCalled();
   });
   it('normalizes legacy settings into the current shape', () => {
     expect(normalizeSettings({ provider: 'qwen', apiKey: 'legacy-key' })).toMatchObject({ provider: 'qwen', apiKey: 'legacy-key', apiKeys: { qwen: 'legacy-key' } });

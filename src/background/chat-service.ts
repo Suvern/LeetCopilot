@@ -1,5 +1,6 @@
 import { getSettings } from '../shared/storage';
-import { PROVIDERS } from '../shared/providers';
+import { getProviderPreset } from '../shared/providers';
+import { getActiveAccount } from '../shared/settings';
 import type { ChatRequest } from '../shared/messages';
 import { ProviderRequestError, reportError, type ErrorDiagnostic } from './diagnostics';
 import { sendToTab } from './messenger';
@@ -17,9 +18,24 @@ export function cancelChat(requestId: string) {
 
 export async function streamChat(request: ChatRequest, tabId?: number) {
   const settings = await getSettings();
-  const config = PROVIDERS[settings.provider];
-  const model = settings.model.trim() || config.defaultModel;
-  if (!settings.apiKey.trim()) {
+  const providerId = settings.activeProviderId;
+  const account = getActiveAccount(settings);
+  const config = getProviderPreset(providerId);
+  const model = account?.model.trim() || config?.defaultModel || settings.model.trim();
+
+  if (!config || !account) {
+    await reportError(settings, request.requestId, tabId, {
+      message: `当前 provider 未注册或没有对应账户：${providerId}。`,
+      kind: 'configuration',
+      details: '请求未发送：当前 provider 没有可用的注册信息或账户配置。',
+      model,
+      endpoint: config?.endpoint,
+      attempts: 0,
+    }, sendToTab);
+    return;
+  }
+
+  if (!account.apiKey.trim()) {
     await reportError(settings, request.requestId, tabId, {
       message: `请先在 LeetCopilot 设置中填写${config.label} API Key。`,
       kind: 'configuration',
@@ -39,7 +55,7 @@ export async function streamChat(request: ChatRequest, tabId?: number) {
       const controller = new AbortController();
       controllers.set(request.requestId, controller);
       try {
-        await streamAttempt(request, settings, config, controller, async (text) => sendToTab({ type: 'delta', requestId: request.requestId, text }, tabId));
+        await streamAttempt(request, account, config, controller, async (text) => sendToTab({ type: 'delta', requestId: request.requestId, text }, tabId));
         await sendToTab({ type: 'done', requestId: request.requestId }, tabId);
         return;
       } catch (error) {

@@ -1,8 +1,7 @@
 import { shortcutInstruction, systemPrompt, userPrompt } from '../shared/prompt';
-import { buildKeyTestBody, buildStreamingBody } from '../shared/provider-protocol';
-import { PROVIDERS, type ProviderConfig } from '../shared/providers';
-import { parseSseEvent } from '../shared/stream';
-import type { Settings } from '../shared/domain';
+import { getProviderAdapter } from '../shared/provider-protocol';
+import { getProviderPreset, type ProviderPreset } from '../shared/providers';
+import type { ProviderAccount } from '../shared/domain';
 import type { ChatRequest, KeyTestRequest, KeyTestResponse } from '../shared/messages';
 import { ProviderRequestError } from './diagnostics';
 
@@ -19,9 +18,12 @@ export class StreamStartTimeoutError extends Error {
 }
 
 export async function testProviderKey(provider: KeyTestRequest['provider'], apiKey: string, model: string): Promise<KeyTestResponse> {
-  const config = PROVIDERS[provider];
+  const config = getProviderPreset(provider);
   const key = apiKey.trim();
   if (!key) return { ok: false, error: '请先填写 API Key。' };
+  if (!config) return { ok: false, error: `未注册的 provider：${provider}。` };
+  const adapter = getProviderAdapter(config.protocol);
+  if (!adapter) return { ok: false, error: `${config.label} 暂不支持 ${config.protocol} 协议。` };
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), RESPONSE_TIMEOUT_MS);
@@ -29,8 +31,8 @@ export async function testProviderKey(provider: KeyTestRequest['provider'], apiK
     const response = await fetch(config.endpoint, {
       method: 'POST',
       signal: controller.signal,
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-      body: buildKeyTestBody(model.trim() || config.defaultModel),
+      headers: adapter.buildHeaders(key),
+      body: adapter.buildKeyTestBody(model.trim() || config.defaultModel),
     });
     if (!response.ok) {
       const detail = (await response.text()).replaceAll(key, '[REDACTED]');
@@ -45,7 +47,11 @@ export async function testProviderKey(provider: KeyTestRequest['provider'], apiK
   }
 }
 
-export async function streamAttempt(request: ChatRequest, settings: Settings, config: ProviderConfig, controller: AbortController, onDelta: (text: string) => Promise<void>) {
+export async function streamAttempt(request: ChatRequest, account: ProviderAccount, config: ProviderPreset, controller: AbortController, onDelta: (text: string) => Promise<void>) {
+  const adapter = getProviderAdapter(config.protocol);
+  if (!adapter) throw new ProviderRequestError(`${config.label} 暂不支持 ${config.protocol} 协议。`, { kind: 'configuration', details: `没有可用的 ${config.protocol} adapter。` });
+  const model = account.model.trim() || config.defaultModel;
+  const apiKey = account.apiKey.trim();
   const startedAt = performance.now();
   let timedOut = false;
   let firstStreamEventReceived = false;
@@ -58,8 +64,8 @@ export async function streamAttempt(request: ChatRequest, settings: Settings, co
     const response = await fetch(config.endpoint, {
       method: 'POST',
       signal: controller.signal,
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${settings.apiKey.trim()}` },
-      body: buildStreamingBody(settings.model.trim() || config.defaultModel, [
+      headers: adapter.buildHeaders(apiKey),
+      body: adapter.buildStreamingBody(model, [
         { role: 'system', content: `${systemPrompt}\n\n${userPrompt(request.problem, '请使用以下题目上下文回答后续对话。')}` },
         ...request.messages.map((message) => ({ role: message.role, content: message.role === 'user' ? shortcutInstruction(message.content) : message.content })),
       ]),
@@ -90,7 +96,7 @@ export async function streamAttempt(request: ChatRequest, settings: Settings, co
       for (const line of lines) {
         const dataLine = line.trim();
         if (!dataLine.startsWith('data:')) continue;
-        const event = parseSseEvent(dataLine.slice(5).trim());
+        const event = adapter.parseStreamEvent(dataLine.slice(5).trim());
         if (event.kind === 'error') throw new ProviderRequestError(`${config.label} 返回了错误响应。`, { kind: 'stream', details: event.details });
         if (event.kind === 'delta') {
           firstStreamEventReceived = true;

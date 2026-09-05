@@ -4,8 +4,14 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="53a96874-ad86-4f30-8e14-40a9a992c825" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
+    <list default="true" id="53a96874-ad86-4f30-8e14-40a9a992c825" name="Changes" comment="docs: update README.md">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/background/chat-service.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/background/chat-service.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/background/diagnostics.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/background/diagnostics.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/background/provider-client.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/background/provider-client.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/shared/provider-protocol.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/shared/provider-protocol.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/shared/providers.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/shared/providers.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/shared.test.ts" beforeDir="false" afterPath="$PROJECT_DIR$/tests/shared.test.ts" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -27,6 +33,9 @@
     &quot;accountId&quot;: &quot;9f51b012-efda-473c-baa5-acd7e8f73ad1&quot;
   }
 }</component>
+  <component name="ProblemsViewState">
+    <option name="selectedTabId" value="QODANA_PROBLEMS_VIEW_TAB" />
+  </component>
   <component name="ProjectColorInfo">{
   &quot;associatedIndex&quot;: 7,
   &quot;fromUser&quot;: false
@@ -72,8 +81,17 @@
       <option name="presentableId" value="Default" />
       <updated>1788513538203</updated>
       <workItem from="1788513539558" duration="5830000" />
-      <workItem from="1788545342117" duration="716000" />
+      <workItem from="1788545342117" duration="7696000" />
     </task>
+    <task id="LOCAL-00001" summary="docs: update README.md">
+      <option name="closed" value="true" />
+      <created>1788546091783</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1788546091783</updated>
+    </task>
+    <option name="localTasksCounter" value="2" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -89,5 +107,9 @@
         </entry>
       </map>
     </option>
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="docs: update README.md" />
+    <option name="LAST_COMMIT_MESSAGE" value="docs: update README.md" />
   </component>
 </project>
