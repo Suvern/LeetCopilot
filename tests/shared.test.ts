@@ -1,13 +1,16 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { extractCodeAction, extractCodeBlock, normalizeLanguage, problemId, replaceLines } from '../src/shared/parse';
 import { parseSseEvent, parseSseLine } from '../src/shared/stream';
 import { buildKeyTestBody, buildStreamingBody } from '../src/shared/provider-protocol';
 import { buildContext, shortcutInstruction, userPrompt } from '../src/shared/prompt';
-import { normalizeSettings } from '../src/shared/settings';
+import { getActiveAccount, normalizeSettings } from '../src/shared/settings';
+import { getSettings, saveSettings } from '../src/shared/storage';
 import type { ProblemContext } from '../src/shared/domain';
 
 const problem: ProblemContext = { id: 'two-sum', title: '两数之和', difficulty: '简单', description: '找出目标和', examples: '示例', constraints: '限制', tags: [], language: 'Python', code: 'print(1)', url: 'https://leetcode.cn/problems/two-sum/' };
 describe('shared helpers', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
   it.each([['c', 'C'], ['cpp', 'C++'], ['JavaScript', 'JavaScript'], ['TypeScript', 'TypeScript'], ['python3', 'Python']])('normalizes %s', (input, expected) => expect(normalizeLanguage(input)).toBe(expected));
   it('extracts a stable problem id', () => expect(problemId(problem.url)).toBe('two-sum'));
   it('parses streaming content deltas', () => expect(parseSseLine('data: {"choices":[{"delta":{"content":"你好"}}]}')).toBe('你好'));
@@ -24,6 +27,82 @@ describe('shared helpers', () => {
   it('normalizes legacy settings into the current shape', () => {
     expect(normalizeSettings({ provider: 'qwen', apiKey: 'legacy-key' })).toMatchObject({ provider: 'qwen', apiKey: 'legacy-key', apiKeys: { qwen: 'legacy-key' } });
     expect(normalizeSettings({ provider: 'deepseek', apiKeys: { qwen: 'qwen-key' } })).toMatchObject({ provider: 'deepseek', apiKey: '', apiKeys: { qwen: 'qwen-key' } });
+  });
+  it('creates isolated built-in accounts while migrating legacy settings', () => {
+    const settings = normalizeSettings({ provider: 'qwen', apiKey: 'qwen-key', model: 'qwen-custom' });
+    expect(settings.schemaVersion).toBe(2);
+    expect(settings.activeProviderId).toBe('qwen');
+    expect(settings.accounts.qwen).toMatchObject({
+      providerId: 'qwen',
+      apiKey: 'qwen-key',
+      model: 'qwen-custom',
+    });
+    expect(getActiveAccount(settings)).toMatchObject({ providerId: 'qwen', apiKey: 'qwen-key' });
+  });
+  it('preserves custom and mode-specific accounts without making them legacy providers', () => {
+    const settings = normalizeSettings({
+      provider: 'deepseek',
+      activeProviderId: 'kimi-code-plan',
+      accounts: {
+        'kimi-code-plan': {
+          providerId: 'kimi-code-plan',
+          apiKey: 'code-key',
+          model: 'kimi-for-coding',
+        },
+      },
+    });
+    expect(getActiveAccount(settings)).toMatchObject({
+      providerId: 'kimi-code-plan',
+      apiKey: 'code-key',
+      model: 'kimi-for-coding',
+    });
+    expect(settings.provider).toBe('deepseek');
+  });
+  it('round-trips the new account fields while retaining legacy fields', async () => {
+    const stored: Record<string, unknown> = {};
+    vi.stubGlobal('chrome', {
+      storage: {
+        local: {
+          get: async (key: string) => ({ [key]: stored[key] }),
+          set: async (values: Record<string, unknown>) => Object.assign(stored, values),
+        },
+      },
+    });
+
+    const switchedSettings = { ...normalizeSettings(), provider: 'qwen' as const, apiKey: ' qwen-key ', model: ' qwen-custom ' };
+    await saveSettings(switchedSettings);
+    const settings = await getSettings();
+    expect(settings.apiKey).toBe('qwen-key');
+    expect(settings.apiKeys.qwen).toBe('qwen-key');
+    expect(settings.activeProviderId).toBe('qwen');
+    expect(settings.accounts.qwen).toMatchObject({ apiKey: 'qwen-key', model: 'qwen-custom' });
+  });
+  it('saves an active custom provider without overwriting the legacy provider account', async () => {
+    const stored: Record<string, unknown> = {};
+    vi.stubGlobal('chrome', {
+      storage: {
+        local: {
+          get: async (key: string) => ({ [key]: stored[key] }),
+          set: async (values: Record<string, unknown>) => Object.assign(stored, values),
+        },
+      },
+    });
+
+    const settings = normalizeSettings({
+      activeProviderId: 'custom:local',
+      accounts: {
+        'custom:local': {
+          providerId: 'custom:local',
+          apiKey: ' custom-key ',
+          model: 'custom-model',
+        },
+      },
+    });
+    await saveSettings(settings);
+    const saved = stored['leet-copilot:settings'] as { activeProviderId: string; accounts: Record<string, { apiKey: string }> };
+    expect(saved.activeProviderId).toBe('custom:local');
+    expect(saved.accounts['custom:local']).toMatchObject({ apiKey: 'custom-key' });
+    expect(saved.accounts.deepseek).toMatchObject({ apiKey: '' });
   });
   it('includes problem context in user prompts', () => expect(userPrompt(problem, '分析')).toContain('当前代码'));
   it('uses the selected language in context', () => expect(buildContext(problem)).toContain('语言：Python'));

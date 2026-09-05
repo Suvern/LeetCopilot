@@ -8,7 +8,28 @@ export async function getSettings(): Promise<Settings> {
   return normalizeSettings(values[settingsKey] as StoredSettings | undefined);
 }
 export async function saveSettings(settings: Settings) {
-  await chrome.storage.local.set({ [settingsKey]: { ...settings, apiKey: settings.apiKey.trim(), apiKeys: { ...settings.apiKeys, [settings.provider]: settings.apiKey.trim() } } });
+  const normalized = normalizeSettings(settings);
+  const legacyProviderIds = new Set(['deepseek', 'qwen']);
+  const providerId = legacyProviderIds.has(normalized.activeProviderId) && normalized.provider !== normalized.activeProviderId
+    ? normalized.provider
+    : normalized.activeProviderId;
+  const account = normalized.accounts[providerId];
+  const apiKey = normalized.apiKey.trim();
+  const model = normalized.model.trim() || account?.model || normalized.model;
+  const accounts = account ? {
+    ...normalized.accounts,
+    [providerId]: { ...account, providerId, apiKey, model },
+  } : normalized.accounts;
+  await chrome.storage.local.set({
+    [settingsKey]: {
+      ...normalized,
+      activeProviderId: providerId,
+      apiKey,
+      model,
+      accounts,
+      apiKeys: { ...normalized.apiKeys, [normalized.provider]: normalized.provider === providerId ? apiKey : normalized.apiKeys[normalized.provider] },
+    },
+  });
 }
 export async function savePreferences(preferences: Pick<Settings, 'theme' | 'hideNativeLeet'>) {
   const current = await getSettings();

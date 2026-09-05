@@ -1,6 +1,7 @@
 export type Language = 'C' | 'C++' | 'Java' | 'JavaScript' | 'TypeScript' | 'Python';
 export type Theme = 'light' | 'dark';
-export type Provider = 'deepseek' | 'qwen';
+export type Provider = string;
+export type ApiProtocol = 'openai-chat' | 'anthropic-messages' | 'openai-responses';
 export type ErrorKind = 'configuration' | 'timeout' | 'http' | 'network' | 'stream' | 'unknown';
 
 export interface ProblemContext {
@@ -39,11 +40,24 @@ export interface ErrorLog {
   requestId?: string;
 }
 
+export interface ProviderAccount {
+  providerId: Provider;
+  apiKey: string;
+  model: string;
+  customName?: string;
+  customBaseUrl?: string;
+  customProtocol?: Extract<ApiProtocol, 'openai-chat' | 'anthropic-messages'>;
+  lastTestedAt?: number;
+}
+
 export interface Settings {
+  schemaVersion: 2;
   provider: Provider;
   apiKey: string;
   apiKeys: Record<Provider, string>;
   model: string;
+  activeProviderId: Provider;
+  accounts: Record<string, ProviderAccount>;
   theme: Theme | 'auto';
   hideNativeLeet: boolean;
 }
