@@ -26,10 +26,10 @@ export function SettingsApp() {
     <div class="settings-form">
       <section class="settings-section" aria-labelledby="provider-heading">
         <div class="section-heading"><KeyRoundIcon aria-hidden="true" /><div><h2 id="provider-heading">模型连接</h2><p>选择服务并保存在此浏览器中</p></div></div>
-        <Select.Root class="select-root" collection={providerCollection} value={[settings().provider]} onValueChange={(details) => { const value = details.value[0] as Provider | undefined; if (value) controller.changeProvider(value); }}>
+        <Select.Root class="select-root" collection={providerCollection} value={[settings().activeProviderId]} onValueChange={(details) => { const value = details.value[0] as Provider | undefined; if (value) controller.changeProvider(value); }}>
           <Select.Label class="field-label">AI 平台</Select.Label>
           <Select.Control class="select-control"><Select.Trigger class="select-trigger" aria-label="AI 平台"><Select.ValueText class="select-value" placeholder="选择平台" /><Select.Indicator class="select-indicator"><ChevronDownIcon /></Select.Indicator></Select.Trigger></Select.Control>
-          <Portal><Select.Positioner class="select-positioner"><Select.Content class="select-content"><For each={providerCollection.items}>{(item) => <Select.Item class="select-item" item={item}><Select.ItemText>{item.label}</Select.ItemText><Show when={Boolean(settings().apiKeys[item.value as Provider]?.trim())}><KeyRoundIcon class="provider-configured" aria-label="已配置 API Key" /></Show></Select.Item>}</For></Select.Content></Select.Positioner></Portal>
+          <Portal><Select.Positioner class="select-positioner"><Select.Content class="select-content"><For each={providerCollection.items}>{(item) => <Select.Item class="select-item" item={item}><Select.ItemText><span class="provider-option-label">{item.label}<Show when={item.description}><small>{item.description}</small></Show></span></Select.ItemText><Show when={Boolean(settings().accounts[item.value as Provider]?.apiKey.trim())}><KeyRoundIcon class="provider-configured" aria-label="已配置 API Key" /></Show></Select.Item>}</For></Select.Content></Select.Positioner></Portal>
           <Select.HiddenSelect />
         </Select.Root>
         <PasswordInput.Root class="password-root" autoComplete="new-password">

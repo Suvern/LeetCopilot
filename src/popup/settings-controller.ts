@@ -1,16 +1,16 @@
 import { createSignal, onMount, type Accessor } from 'solid-js';
 import { getSettings, savePreferences, saveSettings } from '../shared/storage';
 import { DEFAULT_SETTINGS } from '../shared/settings';
-import { PROVIDERS } from '../shared/providers';
+import { getProviderPreset, PROVIDERS, type ProviderPreset } from '../shared/providers';
 import type { KeyTestResponse } from '../shared/messages';
-import type { Provider, Settings } from '../shared/domain';
+import type { Provider, ProviderAccount, Settings } from '../shared/domain';
 
 export type SettingsStatus = { kind: 'idle' | 'testing' | 'success' | 'error'; message: string };
 
 export interface SettingsController {
   settings: Accessor<Settings>;
   status: Accessor<SettingsStatus>;
-  provider: () => typeof PROVIDERS[Provider];
+  provider: () => ProviderPreset;
   update: (key: 'apiKey' | 'model' | 'hideNativeLeet', value: string | boolean) => void;
   changeProvider: (provider: Provider) => void;
   changeTheme: (dark: boolean) => void;
@@ -27,18 +27,38 @@ export function createSettingsController(): SettingsController {
 
   onMount(() => { void getSettings().then(setSettings); });
 
+  const accountFor = (current: Settings, providerId = current.activeProviderId): ProviderAccount => {
+    const preset = getProviderPreset(providerId) ?? PROVIDERS.deepseek;
+    return current.accounts[providerId] ?? { providerId, apiKey: '', model: preset.defaultModel };
+  };
+
+  const withActiveAccount = (current: Settings, providerId: Provider, account: ProviderAccount): Settings => ({
+    ...current,
+    activeProviderId: providerId,
+    apiKey: account.apiKey,
+    model: account.model,
+    accounts: { ...current.accounts, [providerId]: account },
+    apiKeys: { ...current.apiKeys, [providerId]: account.apiKey },
+  });
+
   const update = (key: 'apiKey' | 'model' | 'hideNativeLeet', value: string | boolean) => {
     const current = settings();
+    if (key === 'hideNativeLeet') {
+      setSettings({ ...current, hideNativeLeet: value as boolean });
+      return;
+    }
+    const account = { ...accountFor(current), [key]: value as string };
     setSettings({
-      ...current,
+      ...withActiveAccount(current, current.activeProviderId, account),
       [key]: value,
-      apiKeys: key === 'apiKey' ? { ...current.apiKeys, [current.provider]: value as string } : current.apiKeys,
     });
   };
 
   const changeProvider = (provider: Provider) => {
     const current = settings();
-    setSettings({ ...current, provider, apiKey: current.apiKeys[provider], model: PROVIDERS[provider].defaultModel });
+    testSequence += 1;
+    if (status().kind === 'testing') setStatus({ kind: 'idle', message: '' });
+    setSettings(withActiveAccount(current, provider, accountFor(current, provider)));
   };
 
   const changeTheme = (dark: boolean) => {
@@ -54,15 +74,16 @@ export function createSettingsController(): SettingsController {
 
   const testAndSave = async () => {
     const current = settings();
-    if (!current.apiKey.trim()) { setStatus({ kind: 'error', message: '请先填写 API Key。' }); return; }
-    const fingerprint = `${current.provider}\n${current.model.trim()}\n${current.apiKey.trim()}`;
+    const account = accountFor(current);
+    if (!account.apiKey.trim()) { setStatus({ kind: 'error', message: '请先填写 API Key。' }); return; }
+    const fingerprint = `${current.activeProviderId}\n${current.model.trim()}\n${account.apiKey.trim()}`;
     const sequence = ++testSequence;
     setStatus({ kind: 'testing', message: '正在测试 API Key…' });
     const test = pendingTest?.fingerprint === fingerprint
       ? pendingTest.promise
       : (async () => {
         try {
-          return await chrome.runtime.sendMessage({ type: 'test-key', provider: current.provider, apiKey: current.apiKey, model: current.model }) as KeyTestResponse;
+          return await chrome.runtime.sendMessage({ type: 'test-key', provider: current.activeProviderId, apiKey: account.apiKey, model: account.model }) as KeyTestResponse;
         } catch {
           return { ok: false, error: 'API Key 测试失败，请检查扩展权限或网络连接。' };
         }
@@ -80,12 +101,12 @@ export function createSettingsController(): SettingsController {
   return {
     settings,
     status,
-    provider: () => PROVIDERS[settings().provider],
+    provider: () => getProviderPreset(settings().activeProviderId) ?? PROVIDERS.deepseek,
     update,
     changeProvider,
     changeTheme,
     changeHideNativeLeet,
     testAndSave,
-    openApiKeys: () => void chrome.tabs.create({ url: PROVIDERS[settings().provider].apiKeysUrl }),
+    openApiKeys: () => void chrome.tabs.create({ url: (getProviderPreset(settings().activeProviderId) ?? PROVIDERS.deepseek).apiKeysUrl }),
   };
 }

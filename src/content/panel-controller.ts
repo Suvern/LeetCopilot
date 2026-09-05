@@ -1,5 +1,7 @@
 import { batch, createEffect, createSignal, onCleanup, onMount, type Accessor } from 'solid-js';
 import { clearErrorLogs, clearHistory, getErrorLogs, getHistory, getSettings, saveHistory } from '../shared/storage';
+import { getProviderPreset } from '../shared/providers';
+import { getActiveAccount } from '../shared/settings';
 import { extractCodeAction } from '../shared/parse';
 import type { BackgroundEvent } from '../shared/messages';
 import type { ChatMessage, ErrorLog, ProblemContext, Theme } from '../shared/domain';
@@ -146,7 +148,9 @@ export function createPanelController(): PanelController {
     const value = text.trim();
     if (!value || busy()) return;
     const settings = await getSettings();
-    if (!settings.apiKey.trim()) { setError(`尚未设置${settings.provider === 'qwen' ? '千问' : 'DeepSeek'} API Key。请点击浏览器工具栏中的 LeetCopilot 图标完成设置。`); return; }
+    const account = getActiveAccount(settings);
+    const providerLabel = getProviderPreset(settings.activeProviderId)?.label ?? settings.activeProviderId;
+    if (!account?.apiKey.trim()) { setError(`尚未设置${providerLabel} API Key。请点击浏览器工具栏中的 LeetCopilot 图标完成设置。`); return; }
     batch(() => { setError(''); setErrorLogs([]); setErrorLogId(); setShowErrorLogs(false); setReceivedToken(false); });
     stickToBottom = true;
     requestId = uid();
@@ -226,7 +230,7 @@ export function createPanelController(): PanelController {
   onMount(() => {
     void refresh();
     void getSettings().then((settings) => {
-      setHasApiKey(Object.values(settings.apiKeys).some((key) => key.trim()));
+      setHasApiKey(Object.values(settings.accounts).some((account) => account.apiKey.trim()));
       setTheme(settings.theme);
       setHideNativeLeet(settings.hideNativeLeet);
       syncNativeLeet(settings.hideNativeLeet);
@@ -234,7 +238,7 @@ export function createPanelController(): PanelController {
     const storageListener = (changes: { [key: string]: chrome.storage.StorageChange }, area: string) => {
       if (area !== 'local' || !changes['leet-copilot:settings']) return;
       void getSettings().then((settings) => {
-        setHasApiKey(Object.values(settings.apiKeys).some((key) => key.trim()));
+        setHasApiKey(Object.values(settings.accounts).some((account) => account.apiKey.trim()));
         if (settings.hideNativeLeet !== hideNativeLeet()) nativeRestoreRequested = !settings.hideNativeLeet;
         setTheme(settings.theme);
         setHideNativeLeet(settings.hideNativeLeet);

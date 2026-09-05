@@ -3,13 +3,15 @@ import { extractCodeAction, extractCodeBlock, normalizeLanguage, problemId, repl
 import { parseSseEvent, parseSseLine } from '../src/shared/stream';
 import { buildKeyTestBody, buildStreamingBody, getProviderAdapter } from '../src/shared/provider-protocol';
 import { getProviderPreset, PROVIDERS } from '../src/shared/providers';
-import { testProviderKey } from '../src/background/provider-client';
+import { streamAttempt, testProviderKey } from '../src/background/provider-client';
 import { buildContext, shortcutInstruction, userPrompt } from '../src/shared/prompt';
 import { getActiveAccount, normalizeSettings } from '../src/shared/settings';
 import { getSettings, saveSettings } from '../src/shared/storage';
+import type { ChatRequest } from '../src/shared/messages';
 import type { ProblemContext } from '../src/shared/domain';
 
 const problem: ProblemContext = { id: 'two-sum', title: '两数之和', difficulty: '简单', description: '找出目标和', examples: '示例', constraints: '限制', tags: [], language: 'Python', code: 'print(1)', url: 'https://leetcode.cn/problems/two-sum/' };
+const chatRequest: ChatRequest = { type: 'chat', requestId: 'request-1', problem, messages: [] };
 describe('shared helpers', () => {
   afterEach(() => vi.unstubAllGlobals());
 
@@ -29,6 +31,10 @@ describe('shared helpers', () => {
   it('registers providers with an explicit protocol and stable id', () => {
     expect(getProviderPreset('deepseek')).toMatchObject({ id: 'deepseek', protocol: 'openai-chat' });
     expect(PROVIDERS.qwen.protocol).toBe('openai-chat');
+    expect(getProviderPreset('openai')).toMatchObject({ endpoint: 'https://api.openai.com/v1/chat/completions', defaultModel: 'gpt-4.1-mini' });
+    expect(getProviderPreset('kimi-api')).toMatchObject({ label: 'Kimi', description: 'API', endpoint: 'https://api.moonshot.cn/v1/chat/completions' });
+    expect(getProviderPreset('zhipu')).toMatchObject({ endpoint: 'https://open.bigmodel.cn/api/paas/v4/chat/completions', defaultModel: 'glm-4-flash' });
+    expect(getProviderPreset('openrouter')).toMatchObject({ endpoint: 'https://openrouter.ai/api/v1/chat/completions', defaultModel: 'openai/gpt-4.1-mini' });
     expect(getProviderPreset('missing-provider')).toBeUndefined();
   });
   it('builds and parses OpenAI Chat adapter events', () => {
@@ -46,6 +52,32 @@ describe('shared helpers', () => {
     await expect(testProviderKey('missing-provider', 'key', '')).resolves.toEqual({ ok: false, error: '未注册的 provider：missing-provider。' });
     expect(fetchMock).not.toHaveBeenCalled();
   });
+  it('streams a complete OpenAI Chat response through the active provider account', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('data: {"choices":[{"delta":{"content":"hello"}}]}\n\ndata: [DONE]\n\n'));
+        controller.close();
+      },
+    }), { status: 200, statusText: 'OK' }));
+    vi.stubGlobal('fetch', fetchMock);
+    const config = getProviderPreset('openrouter')!;
+    const deltas: string[] = [];
+
+    await streamAttempt(chatRequest, { providerId: 'openrouter', apiKey: 'router-key', model: 'openai/gpt-4.1-mini' }, config, new AbortController(), async (text) => { deltas.push(text); });
+
+    expect(deltas).toEqual(['hello']);
+    expect(fetchMock).toHaveBeenCalledWith(config.endpoint, expect.objectContaining({
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer router-key' },
+      body: expect.stringContaining('openai/gpt-4.1-mini'),
+    }));
+  });
+  it('preserves the provider diagnostic when an OpenAI Chat service returns an HTTP error', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('denied', { status: 401, statusText: 'Unauthorized' })));
+    const config = getProviderPreset('openai')!;
+
+    await expect(streamAttempt(chatRequest, { providerId: 'openai', apiKey: 'openai-key', model: 'gpt-4.1-mini' }, config, new AbortController(), async () => {}))
+      .rejects.toMatchObject({ diagnostic: { kind: 'http', status: 401, details: 'denied' } });
+  });
   it('normalizes legacy settings into the current shape', () => {
     expect(normalizeSettings({ provider: 'qwen', apiKey: 'legacy-key' })).toMatchObject({ provider: 'qwen', apiKey: 'legacy-key', apiKeys: { qwen: 'legacy-key' } });
     expect(normalizeSettings({ provider: 'deepseek', apiKeys: { qwen: 'qwen-key' } })).toMatchObject({ provider: 'deepseek', apiKey: '', apiKeys: { qwen: 'qwen-key' } });
@@ -60,6 +92,13 @@ describe('shared helpers', () => {
       model: 'qwen-custom',
     });
     expect(getActiveAccount(settings)).toMatchObject({ providerId: 'qwen', apiKey: 'qwen-key' });
+  });
+  it('creates separate default accounts for all built-in OpenAI Chat providers', () => {
+    const settings = normalizeSettings();
+    expect(settings.accounts.openai).toMatchObject({ providerId: 'openai', model: 'gpt-4.1-mini' });
+    expect(settings.accounts['kimi-api']).toMatchObject({ providerId: 'kimi-api', model: 'kimi-k2.7-code' });
+    expect(settings.accounts.zhipu).toMatchObject({ providerId: 'zhipu', model: 'glm-4-flash' });
+    expect(settings.accounts.openrouter).toMatchObject({ providerId: 'openrouter', model: 'openai/gpt-4.1-mini' });
   });
   it('preserves custom and mode-specific accounts without making them legacy providers', () => {
     const settings = normalizeSettings({
@@ -91,13 +130,45 @@ describe('shared helpers', () => {
       },
     });
 
-    const switchedSettings = { ...normalizeSettings(), provider: 'qwen' as const, apiKey: ' qwen-key ', model: ' qwen-custom ' };
+    const current = normalizeSettings();
+    const switchedSettings = {
+      ...current,
+      provider: 'qwen' as const,
+      activeProviderId: 'qwen',
+      apiKey: ' qwen-key ',
+      model: ' qwen-custom ',
+      accounts: { ...current.accounts, qwen: { ...current.accounts.qwen, apiKey: ' qwen-key ', model: ' qwen-custom ' } },
+    };
     await saveSettings(switchedSettings);
     const settings = await getSettings();
     expect(settings.apiKey).toBe('qwen-key');
     expect(settings.apiKeys.qwen).toBe('qwen-key');
     expect(settings.activeProviderId).toBe('qwen');
     expect(settings.accounts.qwen).toMatchObject({ apiKey: 'qwen-key', model: 'qwen-custom' });
+  });
+  it('keeps newly added provider accounts independent when saving the active account', async () => {
+    const stored: Record<string, unknown> = {};
+    vi.stubGlobal('chrome', {
+      storage: {
+        local: {
+          get: async (key: string) => ({ [key]: stored[key] }),
+          set: async (values: Record<string, unknown>) => Object.assign(stored, values),
+        },
+      },
+    });
+    const current = normalizeSettings();
+    await saveSettings({
+      ...current,
+      activeProviderId: 'kimi-api',
+      apiKey: ' kimi-key ',
+      model: ' kimi-custom ',
+      accounts: { ...current.accounts, 'kimi-api': { ...current.accounts['kimi-api'], apiKey: ' kimi-key ', model: ' kimi-custom ' } },
+    });
+
+    const settings = await getSettings();
+    expect(settings.activeProviderId).toBe('kimi-api');
+    expect(getActiveAccount(settings)).toMatchObject({ apiKey: 'kimi-key', model: 'kimi-custom' });
+    expect(settings.accounts.deepseek).toMatchObject({ apiKey: '', model: 'deepseek-v4-flash' });
   });
   it('saves an active custom provider without overwriting the legacy provider account', async () => {
     const stored: Record<string, unknown> = {};
