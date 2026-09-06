@@ -1,5 +1,4 @@
 import { appendErrorLog } from '../shared/storage';
-import { getActiveAccount } from '../shared/settings';
 import type { ErrorKind, Settings } from '../shared/domain';
 import type { BackgroundEvent } from '../shared/messages';
 
@@ -30,9 +29,22 @@ export function redactSecrets(value: string, apiKey: string) {
   return trimmedKey ? value.replaceAll(trimmedKey, '[已隐藏 API Key]') : value;
 }
 
+function savedApiKeys(settings: Settings) {
+  return [...new Set([
+    settings.apiKey,
+    ...Object.values(settings.apiKeys),
+    ...Object.values(settings.accounts).map((account) => account.apiKey),
+  ].map((apiKey) => apiKey.trim()).filter(Boolean))]
+    .sort((left, right) => right.length - left.length);
+}
+
+export function redactSavedSecrets(value: string, settings: Settings) {
+  return savedApiKeys(settings)
+    .reduce((safeValue, apiKey) => redactSecrets(safeValue, apiKey), value);
+}
+
 export async function reportError(settings: Settings, requestId: string, tabId: number | undefined, diagnostic: ErrorDiagnostic, send: (event: BackgroundEvent, tabId?: number) => Promise<void>) {
-  const account = getActiveAccount(settings);
-  const redact = (value: string | undefined) => value ? redactSecrets(value, account?.apiKey ?? settings.apiKey) : value;
+  const redact = (value: string | undefined) => value ? redactSavedSecrets(value, settings) : value;
   const safeMessage = redact(diagnostic.message) ?? '请求失败，请重试。';
   let log;
   try {
@@ -41,10 +53,10 @@ export async function reportError(settings: Settings, requestId: string, tabId: 
       message: safeMessage,
       kind: diagnostic.kind,
       details: redact(diagnostic.details),
-      endpoint: diagnostic.endpoint,
-      model: diagnostic.model,
+      endpoint: redact(diagnostic.endpoint),
+      model: redact(diagnostic.model),
       status: diagnostic.status,
-      statusText: diagnostic.statusText,
+      statusText: redact(diagnostic.statusText),
       attempts: diagnostic.attempts,
       timeoutMs: diagnostic.timeoutMs,
       requestId,

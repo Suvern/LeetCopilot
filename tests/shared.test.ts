@@ -5,6 +5,7 @@ import { parseSseEvent, parseSseLine } from '../src/shared/stream';
 import { buildKeyTestBody, buildStreamingBody, getProviderAdapter } from '../src/shared/provider-protocol';
 import { getProviderPreset, PROVIDERS } from '../src/shared/providers';
 import { streamAttempt, testProviderKey } from '../src/background/provider-client';
+import { redactSavedSecrets, reportError } from '../src/background/diagnostics';
 import { buildContext, shortcutInstruction, userPrompt } from '../src/shared/prompt';
 import { getActiveAccount } from '../src/shared/settings';
 import { migrateSettings } from '../src/shared/settings-migration';
@@ -387,6 +388,61 @@ describe('shared helpers', () => {
     expect(saved.activeProviderId).toBe('custom:local');
     expect(saved.accounts['custom:local']).toMatchObject({ apiKey: 'custom-key' });
     expect(saved.accounts.deepseek).toMatchObject({ apiKey: '' });
+  });
+  it('redacts every saved API Key without leaking a longer Key suffix', () => {
+    const settings = migrateSettings({
+      provider: 'deepseek',
+      apiKey: 'legacy-key',
+      apiKeys: { deepseek: 'legacy-key', qwen: 'shared-prefix' },
+      accounts: {
+        deepseek: { providerId: 'deepseek', apiKey: 'legacy-key', model: 'deepseek-v4-flash' },
+        qwen: { providerId: 'qwen', apiKey: 'shared-prefix-long', model: 'qwen-plus' },
+        'custom:private': { providerId: 'custom:private', apiKey: 'custom-key', model: 'private-model' },
+      },
+    });
+
+    const redacted = redactSavedSecrets('legacy-key | shared-prefix | shared-prefix-long | custom-key', settings);
+
+    expect(redacted).toBe('[已隐藏 API Key] | [已隐藏 API Key] | [已隐藏 API Key] | [已隐藏 API Key]');
+  });
+  it('redacts saved API Keys in error events and persisted error logs', async () => {
+    const stored: Record<string, unknown> = {};
+    vi.stubGlobal('chrome', {
+      storage: {
+        local: {
+          get: async (key: string) => ({ [key]: stored[key] }),
+          set: async (values: Record<string, unknown>) => Object.assign(stored, values),
+        },
+      },
+    });
+    const settings = migrateSettings({
+      provider: 'deepseek',
+      apiKey: 'legacy-key',
+      apiKeys: { deepseek: 'legacy-key', qwen: 'shared-prefix' },
+      accounts: {
+        deepseek: { providerId: 'deepseek', apiKey: 'legacy-key', model: 'deepseek-v4-flash' },
+        qwen: { providerId: 'qwen', apiKey: 'shared-prefix-long', model: 'qwen-plus' },
+        'custom:private': { providerId: 'custom:private', apiKey: 'custom-key', model: 'private-model' },
+      },
+    });
+    const send = vi.fn().mockResolvedValue(undefined);
+
+    await reportError(settings, 'request-1', 7, {
+      message: 'failed: legacy-key shared-prefix-long custom-key',
+      kind: 'http',
+      details: 'response: shared-prefix and custom-key',
+      endpoint: 'https://example.com/?token=legacy-key',
+      model: 'custom-key-model',
+      statusText: 'denied shared-prefix-long',
+    }, send);
+
+    const storedLog = (stored['leet-copilot:error-logs'] as Array<Record<string, unknown>>)[0];
+    const event = send.mock.calls[0][0] as { message: string };
+    const serialized = JSON.stringify({ event, storedLog });
+    for (const apiKey of ['legacy-key', 'shared-prefix', 'shared-prefix-long', 'custom-key']) {
+      expect(serialized).not.toContain(apiKey);
+    }
+    expect(serialized).not.toContain('[已隐藏 API Key]-long');
   });
   it('creates, saves, and deletes a custom provider without affecting DeepSeek', async () => {
     const stored: Record<string, unknown> = {};

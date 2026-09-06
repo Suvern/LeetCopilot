@@ -149,7 +149,7 @@ export function createPanelController(): PanelController {
     if (!value || busy()) return;
     const settings = await getSettings();
     const account = getActiveAccount(settings);
-    const providerLabel = getProviderPreset(settings.activeProviderId)?.label ?? settings.activeProviderId;
+    const providerLabel = getProviderPreset(settings.activeProviderId, account)?.label ?? settings.activeProviderId;
     if (!account?.apiKey.trim()) { setError(`尚未设置${providerLabel} API Key。请点击浏览器工具栏中的 LeetCopilot 图标完成设置。`); return; }
     batch(() => { setError(''); setErrorLogs([]); setErrorLogId(); setShowErrorLogs(false); setReceivedToken(false); });
     stickToBottom = true;
