@@ -2,21 +2,19 @@ import { Field } from '@ark-ui/solid/field';
 import { PasswordInput } from '@ark-ui/solid/password-input';
 import { Select, createListCollection } from '@ark-ui/solid/select';
 import { Switch } from '@ark-ui/solid/switch';
-import { ChevronDownIcon, ExternalLinkIcon, EyeIcon, EyeOffIcon, KeyRoundIcon, Settings2Icon } from 'lucide-solid';
-import { For, Show } from 'solid-js';
+import { ChevronDownIcon, ExternalLinkIcon, EyeIcon, EyeOffIcon, KeyRoundIcon, PlusIcon, Settings2Icon, Trash2Icon } from 'lucide-solid';
+import { createMemo, For, Show } from 'solid-js';
 import { Portal } from 'solid-js/web';
 import { LeetCopilotLogo } from '../shared/Logo';
-import { PROVIDER_OPTIONS } from '../shared/providers';
 import type { Provider } from '../shared/domain';
 import { createSettingsController } from './settings-controller';
 import './style.css';
-
-const providerCollection = createListCollection({ items: PROVIDER_OPTIONS });
 
 export function SettingsApp() {
   const controller = createSettingsController();
   const settings = controller.settings;
   const provider = controller.provider;
+  const providerCollection = createMemo(() => createListCollection({ items: controller.providerOptions() }));
 
   return <main class="popup-shell">
     <header class="popup-header">
@@ -26,16 +24,24 @@ export function SettingsApp() {
     <div class="settings-form">
       <section class="settings-section" aria-labelledby="provider-heading">
         <div class="section-heading"><KeyRoundIcon aria-hidden="true" /><div><h2 id="provider-heading">模型连接</h2><p>选择服务并保存在此浏览器中</p></div></div>
-        <Select.Root class="select-root" collection={providerCollection} value={[settings().activeProviderId]} onValueChange={(details) => { const value = details.value[0] as Provider | undefined; if (value) controller.changeProvider(value); }}>
+        <Select.Root class="select-root" collection={providerCollection()} value={[settings().activeProviderId]} onValueChange={(details) => { const value = details.value[0] as Provider | undefined; if (value) controller.changeProvider(value); }}>
           <Select.Label class="field-label">AI 平台</Select.Label>
           <Select.Control class="select-control"><Select.Trigger class="select-trigger" aria-label="AI 平台"><Select.ValueText class="select-value" placeholder="选择平台" /><Select.Indicator class="select-indicator"><ChevronDownIcon /></Select.Indicator></Select.Trigger></Select.Control>
-          <Portal><Select.Positioner class="select-positioner"><Select.Content class="select-content"><For each={providerCollection.items}>{(item) => <Select.Item class="select-item" item={item}><Select.ItemText><span class="provider-option-label">{item.label}<Show when={item.description}><small>{item.description}</small></Show></span></Select.ItemText><Show when={Boolean(settings().accounts[item.value as Provider]?.apiKey.trim())}><KeyRoundIcon class="provider-configured" aria-label="已配置 API Key" /></Show></Select.Item>}</For></Select.Content></Select.Positioner></Portal>
+          <Portal><Select.Positioner class="select-positioner"><Select.Content class="select-content"><For each={providerCollection().items}>{(item) => <Select.Item class="select-item" item={item}><Select.ItemText><span class="provider-option-label">{item.label}<Show when={item.description}><small>{item.description}</small></Show></span></Select.ItemText><Show when={Boolean(settings().accounts[item.value as Provider]?.apiKey.trim())}><KeyRoundIcon class="provider-configured" aria-label="已配置 API Key" /></Show></Select.Item>}</For></Select.Content></Select.Positioner></Portal>
           <Select.HiddenSelect />
         </Select.Root>
+        <div class="provider-actions"><button class="custom-provider-add" type="button" onClick={controller.createCustomProvider}><PlusIcon aria-hidden="true" />添加自定义平台</button><Show when={settings().activeProviderId.startsWith('custom:')}><button class="custom-provider-delete" type="button" title="删除自定义平台" aria-label="删除自定义平台" onClick={controller.deleteCustomProvider}><Trash2Icon aria-hidden="true" /></button></Show></div>
+        <Show when={settings().activeProviderId.startsWith('custom:')}>
+          <div class="custom-provider-fields">
+            <Field.Root class="field-root"><Field.Label class="field-label">平台名称</Field.Label><input class="text-input" value={settings().accounts[settings().activeProviderId]?.customName ?? ''} onInput={(event) => controller.update('customName', event.currentTarget.value)} placeholder="例如：公司模型服务" /></Field.Root>
+            <Field.Root class="field-root"><Field.Label class="field-label">Base URL</Field.Label><input class="text-input" value={settings().accounts[settings().activeProviderId]?.customBaseUrl ?? ''} onInput={(event) => controller.update('customBaseUrl', event.currentTarget.value)} placeholder="https://api.example.com/v1" /></Field.Root>
+            <Field.Root class="field-root"><Field.Label class="field-label">接口形式</Field.Label><select class="text-input protocol-select" value={settings().accounts[settings().activeProviderId]?.customProtocol ?? 'openai-chat'} onChange={(event) => controller.update('customProtocol', event.currentTarget.value)}><option value="openai-chat">OpenAI Chat Completions</option><option value="anthropic-messages">Anthropic Messages</option></select></Field.Root>
+          </div>
+        </Show>
         <PasswordInput.Root class="password-root" autoComplete="new-password">
           <PasswordInput.Label class="field-label">{provider().label} API Key</PasswordInput.Label>
           <PasswordInput.Control class="password-control"><PasswordInput.Input class="text-input password-input" aria-label={`${provider().label} API Key`} value={settings().apiKey} onInput={(event) => controller.update('apiKey', event.currentTarget.value)} placeholder="粘贴 API Key" /><PasswordInput.VisibilityTrigger class="visibility-trigger" title="显示或隐藏 API Key"><PasswordInput.Indicator fallback={<EyeOffIcon />}><EyeIcon /></PasswordInput.Indicator></PasswordInput.VisibilityTrigger></PasswordInput.Control>
-          <button class="api-key-link" type="button" onClick={controller.openApiKeys}>获取 {provider().label} API Key <ExternalLinkIcon aria-hidden="true" /></button>
+          <Show when={provider().apiKeysUrl}><button class="api-key-link" type="button" onClick={controller.openApiKeys}>获取 {provider().label} API Key <ExternalLinkIcon aria-hidden="true" /></button></Show>
         </PasswordInput.Root>
         <Field.Root class="field-root"><Field.Label class="field-label">模型名称</Field.Label><input class="text-input" value={settings().model} onInput={(event) => controller.update('model', event.currentTarget.value)} placeholder={provider().defaultModel} /></Field.Root>
         <div class="connection-footer"><Show when={controller.status().message}><span class={`connection-status ${controller.status().kind}`} role={controller.status().kind === 'error' ? 'alert' : 'status'}>{controller.status().message}</span></Show><button class="save-button" type="button" onClick={() => void controller.testAndSave()} disabled={controller.status().kind === 'testing'}>{controller.status().kind === 'testing' ? '测试中…' : '测试并保存'}</button></div>

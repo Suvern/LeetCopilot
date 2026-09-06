@@ -25,7 +25,7 @@ async function handleMessage(request: BackgroundRequest, tabId: number | undefin
       sendResponse(await respond(() => applyCode(request.code, request.startLine, request.endLine, tabId), '无法更新代码编辑器。'));
       return;
     case 'test-key':
-      sendResponse(await respond(() => testProviderKey(request.provider, request.apiKey, request.model), 'API Key 测试失败。'));
+      sendResponse(await respond(() => testProviderKey(request.account), 'API Key 测试失败。'));
       return;
     case 'chat':
       await streamChat(request, tabId);

@@ -17,11 +17,11 @@ export class StreamStartTimeoutError extends Error {
   }
 }
 
-export async function testProviderKey(provider: KeyTestRequest['provider'], apiKey: string, model: string): Promise<KeyTestResponse> {
-  const config = getProviderPreset(provider);
-  const key = apiKey.trim();
+export async function testProviderKey(account: KeyTestRequest['account']): Promise<KeyTestResponse> {
+  const config = getProviderPreset(account.providerId, account);
+  const key = account.apiKey.trim();
   if (!key) return { ok: false, error: '请先填写 API Key。' };
-  if (!config) return { ok: false, error: `未注册的 provider：${provider}。` };
+  if (!config) return { ok: false, error: `未注册或配置无效的 provider：${account.providerId}。` };
   const adapter = getProviderAdapter(config.protocol);
   if (!adapter) return { ok: false, error: `${config.label} 暂不支持 ${config.protocol} 协议。` };
 
@@ -32,7 +32,7 @@ export async function testProviderKey(provider: KeyTestRequest['provider'], apiK
       method: 'POST',
       signal: controller.signal,
       headers: adapter.buildHeaders(key),
-      body: adapter.buildKeyTestBody(model.trim() || config.defaultModel),
+      body: adapter.buildKeyTestBody(account.model.trim() || config.defaultModel),
     });
     if (!response.ok) {
       const detail = (await response.text()).replaceAll(key, '[REDACTED]');

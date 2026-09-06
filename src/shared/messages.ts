@@ -1,11 +1,11 @@
-import type { ChatMessage, ProblemContext, Provider } from './domain';
+import type { ChatMessage, ProblemContext, ProviderAccount } from './domain';
 
 export type BackgroundRequest =
   | { type: 'chat'; requestId: string; problem: ProblemContext; messages: ChatMessage[] }
   | { type: 'cancel'; requestId: string }
   | { type: 'read-editor' }
   | { type: 'apply-code'; code: string; startLine?: number; endLine?: number }
-  | { type: 'test-key'; provider: Provider; apiKey: string; model: string };
+  | { type: 'test-key'; account: ProviderAccount };
 
 export type BackgroundEvent =
   | { type: 'delta'; requestId: string; text: string }

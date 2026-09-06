@@ -20,7 +20,7 @@ export async function streamChat(request: ChatRequest, tabId?: number) {
   const settings = await getSettings();
   const providerId = settings.activeProviderId;
   const account = getActiveAccount(settings);
-  const config = getProviderPreset(providerId);
+  const config = getProviderPreset(providerId, account);
   const model = account?.model.trim() || config?.defaultModel || settings.model.trim();
 
   if (!config || !account) {

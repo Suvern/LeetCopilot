@@ -4,7 +4,7 @@ body { min-width:380px; margin:0; }
 button,input { font:inherit; }
 button { cursor:pointer; }
 .popup-shell { overflow:hidden; padding:18px; background:#f7f8f7; }
-.popup-header,.brand-lockup,.section-heading,.popup-footer,.native-switch,.api-key-link,.saved-status,.connection-footer { display:flex; align-items:center; }
+.popup-header,.brand-lockup,.section-heading,.popup-footer,.native-switch,.api-key-link,.saved-status,.connection-footer,.provider-actions,.custom-provider-add { display:flex; align-items:center; }
 .popup-header { justify-content:space-between; margin-bottom:18px; }
 .brand-lockup { gap:10px; }
 .brand-mark { display:grid; width:37px; height:37px; place-items:center; border:1px solid #d7ded9; border-radius:8px; background:#fff; }
@@ -40,6 +40,16 @@ h1 { color:#17241c; font-size:17px; line-height:1.1; letter-spacing:0; }
 .select-item .provider-configured { color:#149558; stroke-width:2.25; }
 .provider-option-label { display:flex; align-items:baseline; gap:6px; }
 .provider-option-label small { color:#728177; font-size:10px; font-weight:600; }
+.provider-actions { justify-content:space-between; margin-top:-5px; }
+.custom-provider-add { gap:4px; border:0; padding:0; color:#137847; background:transparent; font-size:10px; font-weight:650; }
+.custom-provider-add:hover { color:#075f32; text-decoration:underline; }
+.custom-provider-add svg { width:12px; }
+.custom-provider-delete { display:grid; width:26px; height:26px; place-items:center; border:1px solid #e1c7c3; border-radius:6px; color:#a33d35; background:#fff; }
+.custom-provider-delete:hover { border-color:#b84e43; background:#fff4f2; }
+.custom-provider-delete:focus-visible { outline:3px solid rgb(184 78 67 / 18%); outline-offset:2px; }
+.custom-provider-delete svg { width:14px; }
+.custom-provider-fields { display:grid; gap:10px; padding:10px; border:1px solid #dce8e0; border-radius:7px; background:#f8fbf9; }
+.protocol-select { appearance:auto; }
 .password-control { display:grid; grid-template-columns:minmax(0,1fr) auto; overflow:hidden; border:1px solid #d2e2d8; border-radius:7px; background:#fff; transition:border-color 150ms ease,box-shadow 150ms ease; }
 .password-control:focus-within { border-color:#19a862; box-shadow:0 0 0 3px rgb(25 168 98 / 14%); }
 .password-input { min-width:0; border:0; border-radius:0; }

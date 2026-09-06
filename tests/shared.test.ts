@@ -35,6 +35,7 @@ describe('shared helpers', () => {
     expect(getProviderPreset('deepseek')).toMatchObject({ id: 'deepseek', protocol: 'openai-chat' });
     expect(PROVIDERS.qwen.protocol).toBe('openai-chat');
     expect(getProviderPreset('openai')).toMatchObject({ endpoint: 'https://api.openai.com/v1/chat/completions', defaultModel: 'gpt-4.1-mini' });
+    expect(getProviderPreset('anthropic')).toMatchObject({ endpoint: 'https://api.anthropic.com/v1/messages', defaultModel: 'claude-sonnet-4-5-20250929', protocol: 'anthropic-messages' });
     expect(getProviderPreset('kimi-api')).toMatchObject({ label: 'Kimi', description: 'API', endpoint: 'https://api.moonshot.cn/v1/chat/completions' });
     expect(getProviderPreset('kimi-code-plan')).toMatchObject({ label: 'Kimi', description: 'Code Plan', endpoint: 'https://api.kimi.com/coding/v1/chat/completions', defaultModel: 'kimi-for-coding' });
     expect(getProviderPreset('minimax-cn-api')).toMatchObject({ label: 'MiniMax CN', description: 'API', endpoint: 'https://api.minimax.cn/v1/chat/completions', defaultModel: 'MiniMax-M3', apiKeysUrl: 'https://platform.minimaxi.com/user-center/basic-information/interface-key', protocol: 'openai-chat' });
@@ -53,12 +54,42 @@ describe('shared helpers', () => {
     expect(adapter?.parseStreamEvent('[DONE]')).toEqual({ kind: 'done' });
     expect(adapter?.parseStreamEvent('{"error":{"message":"bad key"}}')).toEqual({ kind: 'error', details: '{\n  "message": "bad key"\n}' });
   });
+  it('builds and parses Anthropic Messages adapter events', () => {
+    const adapter = getProviderAdapter('anthropic-messages');
+    expect(adapter?.buildHeaders('secret')).toEqual({ 'Content-Type': 'application/json', 'x-api-key': 'secret', 'anthropic-version': '2023-06-01' });
+    expect(JSON.parse(adapter?.buildStreamingBody('claude-test', [
+      { role: 'system', content: '系统提示' },
+      { role: 'user', content: '你好' },
+    ]) ?? '')).toEqual({ model: 'claude-test', max_tokens: 4096, stream: true, system: '系统提示', messages: [{ role: 'user', content: '你好' }] });
+    expect(adapter?.parseStreamEvent('{"type":"content_block_delta","delta":{"type":"text_delta","text":"hello"}}')).toEqual({ kind: 'delta', content: 'hello' });
+    expect(adapter?.parseStreamEvent('{"type":"message_stop"}')).toEqual({ kind: 'done' });
+    expect(adapter?.parseStreamEvent('{"type":"error","error":{"message":"bad key"}}')).toEqual({ kind: 'error', details: '{\n  "message": "bad key"\n}' });
+  });
+  it('builds complete custom endpoints for both supported protocols', () => {
+    expect(getProviderPreset('custom:openai', { providerId: 'custom:openai', apiKey: '', model: 'model', customName: 'Local', customBaseUrl: 'https://localhost:8080/v1', customProtocol: 'openai-chat' }))
+      .toMatchObject({ endpoint: 'https://localhost:8080/v1/chat/completions', protocol: 'openai-chat' });
+    expect(getProviderPreset('custom:anthropic', { providerId: 'custom:anthropic', apiKey: '', model: 'model', customName: 'Proxy', customBaseUrl: 'https://proxy.example.com/v1/', customProtocol: 'anthropic-messages' }))
+      .toMatchObject({ endpoint: 'https://proxy.example.com/v1/messages', protocol: 'anthropic-messages' });
+    expect(getProviderPreset('custom:invalid', { providerId: 'custom:invalid', apiKey: '', model: 'model', customBaseUrl: 'https://example.com/?key=secret', customProtocol: 'openai-chat' })).toBeUndefined();
+  });
   it('does not fetch for an empty or unregistered provider key test', async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
-    await expect(testProviderKey('deepseek', '  ', '')).resolves.toEqual({ ok: false, error: '请先填写 API Key。' });
-    await expect(testProviderKey('missing-provider', 'key', '')).resolves.toEqual({ ok: false, error: '未注册的 provider：missing-provider。' });
+    await expect(testProviderKey({ providerId: 'deepseek', apiKey: '  ', model: '' })).resolves.toEqual({ ok: false, error: '请先填写 API Key。' });
+    await expect(testProviderKey({ providerId: 'missing-provider', apiKey: 'key', model: '' })).resolves.toEqual({ ok: false, error: '未注册或配置无效的 provider：missing-provider。' });
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+  it('tests a custom OpenAI Chat endpoint through its generated endpoint and headers', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response('{}', { status: 200, statusText: 'OK' }));
+    vi.stubGlobal('fetch', fetchMock);
+    const account = { providerId: 'custom:openai', apiKey: 'custom-key', model: 'local-model', customName: 'Local', customBaseUrl: 'https://localhost:8080/v1', customProtocol: 'openai-chat' } as const;
+
+    await expect(testProviderKey(account)).resolves.toEqual({ ok: true });
+
+    expect(fetchMock).toHaveBeenCalledWith('https://localhost:8080/v1/chat/completions', expect.objectContaining({
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer custom-key' },
+      body: expect.stringContaining('local-model'),
+    }));
   });
   it('streams a complete OpenAI Chat response through the active provider account', async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(new ReadableStream<Uint8Array>({
@@ -123,6 +154,26 @@ describe('shared helpers', () => {
 
     await expect(streamAttempt(chatRequest, { providerId: 'openai', apiKey: 'openai-key', model: 'gpt-4.1-mini' }, config, new AbortController(), async () => {}))
       .rejects.toMatchObject({ diagnostic: { kind: 'http', status: 401, details: 'denied' } });
+  });
+  it('streams Anthropic and custom provider responses through their own protocol', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"claude"}}\n\ndata: {"type":"message_stop"}\n\n'));
+        controller.close();
+      },
+    }), { status: 200, statusText: 'OK' }));
+    vi.stubGlobal('fetch', fetchMock);
+    const account = { providerId: 'custom:anthropic', apiKey: 'custom-key', model: 'claude-test', customName: 'Proxy', customBaseUrl: 'https://proxy.example.com/v1', customProtocol: 'anthropic-messages' } as const;
+    const config = getProviderPreset(account.providerId, account)!;
+    const deltas: string[] = [];
+
+    await streamAttempt(chatRequest, account, config, new AbortController(), async (text) => { deltas.push(text); });
+
+    expect(deltas).toEqual(['claude']);
+    expect(fetchMock).toHaveBeenCalledWith('https://proxy.example.com/v1/messages', expect.objectContaining({
+      headers: { 'Content-Type': 'application/json', 'x-api-key': 'custom-key', 'anthropic-version': '2023-06-01' },
+      body: expect.stringContaining('claude-test'),
+    }));
   });
   it('migrates v0.1.0 settings into the current shape', () => {
     expect(migrateSettings({ provider: 'qwen', apiKey: 'legacy-key' })).toMatchObject({ provider: 'qwen', apiKey: 'legacy-key', apiKeys: { qwen: 'legacy-key' } });
@@ -235,7 +286,7 @@ describe('shared helpers', () => {
     resolveTest?.({ ok: true });
     await pending;
 
-    expect(sendMessage).toHaveBeenCalledWith({ type: 'test-key', provider: 'kimi-api', apiKey: 'api-key', model: 'kimi-k2.7-code' });
+    expect(sendMessage).toHaveBeenCalledWith({ type: 'test-key', account: expect.objectContaining({ providerId: 'kimi-api', apiKey: 'api-key', model: 'kimi-k2.7-code' }) });
     expect(setStorage).not.toHaveBeenCalled();
     expect(controller.status()).toEqual({ kind: 'idle', message: '' });
     dispose();
@@ -336,6 +387,68 @@ describe('shared helpers', () => {
     expect(saved.activeProviderId).toBe('custom:local');
     expect(saved.accounts['custom:local']).toMatchObject({ apiKey: 'custom-key' });
     expect(saved.accounts.deepseek).toMatchObject({ apiKey: '' });
+  });
+  it('creates, saves, and deletes a custom provider without affecting DeepSeek', async () => {
+    const stored: Record<string, unknown> = {};
+    const request = vi.fn().mockResolvedValue(true);
+    const sendMessage = vi.fn().mockResolvedValue({ ok: true });
+    vi.stubGlobal('chrome', {
+      permissions: { request },
+      runtime: { sendMessage },
+      storage: {
+        local: {
+          get: async (key: string) => ({ [key]: stored[key] }),
+          set: async (values: Record<string, unknown>) => Object.assign(stored, values),
+        },
+      },
+    });
+
+    let controller!: ReturnType<typeof createSettingsController>;
+    let dispose!: () => void;
+    createRoot((rootDispose) => {
+      controller = createSettingsController();
+      controller.createCustomProvider();
+      controller.update('customName', '本地代理');
+      controller.update('customBaseUrl', 'https://proxy.example.com/v1');
+      controller.update('model', 'local-model');
+      controller.update('apiKey', 'custom-key');
+      dispose = rootDispose;
+    });
+    const providerId = controller.settings().activeProviderId;
+    await controller.testAndSave();
+
+    expect(providerId).toMatch(/^custom:/);
+    expect(request).toHaveBeenCalledWith({ origins: ['https://proxy.example.com/*'] });
+    expect(sendMessage).toHaveBeenCalledWith({ type: 'test-key', account: expect.objectContaining({ providerId, customName: '本地代理', customProtocol: 'openai-chat' }) });
+    expect((stored['leet-copilot:settings'] as { accounts: Record<string, unknown> }).accounts[providerId]).toBeDefined();
+    controller.deleteCustomProvider();
+    expect(controller.settings().activeProviderId).toBe('deepseek');
+    expect(controller.settings().accounts[providerId]).toBeUndefined();
+    expect(controller.settings().accounts.deepseek).toBeDefined();
+    dispose();
+  });
+  it('rejects incomplete custom providers before requesting network access', async () => {
+    const request = vi.fn();
+    const sendMessage = vi.fn();
+    vi.stubGlobal('chrome', { permissions: { request }, runtime: { sendMessage }, storage: { local: { get: async () => ({}), set: vi.fn() } } });
+
+    let controller!: ReturnType<typeof createSettingsController>;
+    let dispose!: () => void;
+    createRoot((rootDispose) => {
+      controller = createSettingsController();
+      controller.createCustomProvider();
+      controller.update('customName', '坏地址');
+      controller.update('customBaseUrl', 'https://proxy.example.com/?token=secret');
+      controller.update('model', 'model');
+      controller.update('apiKey', 'key');
+      dispose = rootDispose;
+    });
+    await controller.testAndSave();
+
+    expect(controller.status()).toEqual({ kind: 'error', message: 'Base URL 必须是有效的 HTTP 或 HTTPS 地址，且不能包含查询参数或凭据。' });
+    expect(request).not.toHaveBeenCalled();
+    expect(sendMessage).not.toHaveBeenCalled();
+    dispose();
   });
   it('includes problem context in user prompts', () => expect(userPrompt(problem, '分析')).toContain('当前代码'));
   it('uses the selected language in context', () => expect(buildContext(problem)).toContain('语言：Python'));

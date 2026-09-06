@@ -1,4 +1,4 @@
-import type { ApiProtocol, Provider } from './domain';
+import type { ApiProtocol, Provider, ProviderAccount } from './domain';
 
 export type ProviderPreset = {
   id: Provider;
@@ -6,7 +6,7 @@ export type ProviderPreset = {
   description?: string;
   endpoint: string;
   defaultModel: string;
-  apiKeysUrl: string;
+  apiKeysUrl?: string;
   protocol: ApiProtocol;
 };
 
@@ -34,6 +34,14 @@ export const PROVIDERS: Record<Provider, ProviderPreset> = {
     defaultModel: 'gpt-4.1-mini',
     apiKeysUrl: 'https://platform.openai.com/api-keys',
     protocol: 'openai-chat',
+  },
+  anthropic: {
+    id: 'anthropic',
+    label: 'Anthropic',
+    endpoint: 'https://api.anthropic.com/v1/messages',
+    defaultModel: 'claude-sonnet-4-5-20250929',
+    apiKeysUrl: 'https://console.anthropic.com/settings/keys',
+    protocol: 'anthropic-messages',
   },
   'kimi-api': {
     id: 'kimi-api',
@@ -107,8 +115,40 @@ export const PROVIDERS: Record<Provider, ProviderPreset> = {
   },
 };
 
-export function getProviderPreset(providerId: Provider): ProviderPreset | undefined {
-  return PROVIDERS[providerId];
+export function isCustomProviderId(providerId: Provider) {
+  return providerId.startsWith('custom:');
+}
+
+function customEndpoint(baseUrl: string, protocol: ApiProtocol) {
+  try {
+    const url = new URL(baseUrl.trim());
+    if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.search || url.hash) return undefined;
+    const path = url.pathname.replace(/\/+$/, '');
+    if (protocol === 'anthropic-messages') {
+      url.pathname = path.endsWith('/v1/messages') ? path : path.endsWith('/v1') ? `${path}/messages` : `${path}/v1/messages`;
+    } else if (!path.endsWith('/chat/completions')) {
+      url.pathname = `${path}/chat/completions`;
+    }
+    return url.toString();
+  } catch {
+    return undefined;
+  }
+}
+
+export function getProviderPreset(providerId: Provider, account?: ProviderAccount): ProviderPreset | undefined {
+  const builtin = PROVIDERS[providerId];
+  if (builtin) return builtin;
+  if (!isCustomProviderId(providerId) || !account || !account.customProtocol) return undefined;
+  const endpoint = customEndpoint(account.customBaseUrl ?? '', account.customProtocol);
+  if (!endpoint) return undefined;
+  return {
+    id: providerId,
+    label: account.customName?.trim() || '自定义平台',
+    description: account.customProtocol === 'anthropic-messages' ? 'Anthropic Messages' : 'OpenAI Chat',
+    endpoint,
+    defaultModel: account.model.trim(),
+    protocol: account.customProtocol,
+  };
 }
 
 export const PROVIDER_OPTIONS = Object.entries(PROVIDERS).map(([value, provider]) => ({
