@@ -37,6 +37,10 @@ describe('shared helpers', () => {
     expect(getProviderPreset('openai')).toMatchObject({ endpoint: 'https://api.openai.com/v1/chat/completions', defaultModel: 'gpt-4.1-mini' });
     expect(getProviderPreset('kimi-api')).toMatchObject({ label: 'Kimi', description: 'API', endpoint: 'https://api.moonshot.cn/v1/chat/completions' });
     expect(getProviderPreset('kimi-code-plan')).toMatchObject({ label: 'Kimi', description: 'Code Plan', endpoint: 'https://api.kimi.com/coding/v1/chat/completions', defaultModel: 'kimi-for-coding' });
+    expect(getProviderPreset('minimax-cn-api')).toMatchObject({ label: 'MiniMax CN', description: 'API', endpoint: 'https://api.minimax.cn/v1/chat/completions', defaultModel: 'MiniMax-M3', apiKeysUrl: 'https://platform.minimaxi.com/user-center/basic-information/interface-key', protocol: 'openai-chat' });
+    expect(getProviderPreset('minimax-cn-plan')).toMatchObject({ label: 'MiniMax CN', description: 'Token Plan', endpoint: 'https://api.minimax.cn/v1/chat/completions', defaultModel: 'MiniMax-M3', apiKeysUrl: 'https://platform.minimaxi.com/user-center/payment/token-plan', protocol: 'openai-chat' });
+    expect(getProviderPreset('minimax-api')).toMatchObject({ label: 'MiniMax', description: 'API', endpoint: 'https://api.minimax.io/v1/chat/completions', defaultModel: 'MiniMax-M3', apiKeysUrl: 'https://platform.minimax.io/user-center/basic-information/interface-key', protocol: 'openai-chat' });
+    expect(getProviderPreset('minimax-plan')).toMatchObject({ label: 'MiniMax', description: 'Token Plan', endpoint: 'https://api.minimax.io/v1/chat/completions', defaultModel: 'MiniMax-M3', apiKeysUrl: 'https://platform.minimax.io/user-center/payment/token-plan', protocol: 'openai-chat' });
     expect(getProviderPreset('zhipu')).toMatchObject({ endpoint: 'https://open.bigmodel.cn/api/paas/v4/chat/completions', defaultModel: 'glm-4-flash' });
     expect(getProviderPreset('openrouter')).toMatchObject({ endpoint: 'https://openrouter.ai/api/v1/chat/completions', defaultModel: 'openai/gpt-4.1-mini' });
     expect(getProviderPreset('missing-provider')).toBeUndefined();
@@ -94,6 +98,25 @@ describe('shared helpers', () => {
       body: expect.stringContaining('kimi-for-coding'),
     }));
   });
+  it('streams a complete MiniMax Token Plan response through the OpenAI Chat adapter', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('data: {"choices":[{"delta":{"content":"minimax"}}]}\n\ndata: [DONE]\n\n'));
+        controller.close();
+      },
+    }), { status: 200, statusText: 'OK' }));
+    vi.stubGlobal('fetch', fetchMock);
+    const config = getProviderPreset('minimax-cn-plan')!;
+    const deltas: string[] = [];
+
+    await streamAttempt(chatRequest, { providerId: 'minimax-cn-plan', apiKey: 'plan-key', model: 'MiniMax-M3' }, config, new AbortController(), async (text) => { deltas.push(text); });
+
+    expect(deltas).toEqual(['minimax']);
+    expect(fetchMock).toHaveBeenCalledWith('https://api.minimax.cn/v1/chat/completions', expect.objectContaining({
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer plan-key' },
+      body: expect.stringContaining('MiniMax-M3'),
+    }));
+  });
   it('preserves the provider diagnostic when an OpenAI Chat service returns an HTTP error', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('denied', { status: 401, statusText: 'Unauthorized' })));
     const config = getProviderPreset('openai')!;
@@ -121,6 +144,10 @@ describe('shared helpers', () => {
     expect(settings.accounts.openai).toMatchObject({ providerId: 'openai', model: 'gpt-4.1-mini' });
     expect(settings.accounts['kimi-api']).toMatchObject({ providerId: 'kimi-api', model: 'kimi-k2.7-code' });
     expect(settings.accounts['kimi-code-plan']).toMatchObject({ providerId: 'kimi-code-plan', model: 'kimi-for-coding' });
+    expect(settings.accounts['minimax-cn-api']).toMatchObject({ providerId: 'minimax-cn-api', model: 'MiniMax-M3' });
+    expect(settings.accounts['minimax-cn-plan']).toMatchObject({ providerId: 'minimax-cn-plan', model: 'MiniMax-M3' });
+    expect(settings.accounts['minimax-api']).toMatchObject({ providerId: 'minimax-api', model: 'MiniMax-M3' });
+    expect(settings.accounts['minimax-plan']).toMatchObject({ providerId: 'minimax-plan', model: 'MiniMax-M3' });
     expect(settings.accounts.zhipu).toMatchObject({ providerId: 'zhipu', model: 'glm-4-flash' });
     expect(settings.accounts.openrouter).toMatchObject({ providerId: 'openrouter', model: 'openai/gpt-4.1-mini' });
   });
@@ -153,6 +180,36 @@ describe('shared helpers', () => {
     const planSettings = await getSettings();
     expect(planSettings.accounts['kimi-api']).toMatchObject({ apiKey: 'api-key', model: 'api-model' });
     expect(planSettings.accounts['kimi-code-plan']).toMatchObject({ apiKey: 'plan-key', model: 'plan-model' });
+  });
+  it('keeps MiniMax regional and Token Plan accounts isolated when switching', async () => {
+    const stored: Record<string, unknown> = {};
+    vi.stubGlobal('chrome', {
+      storage: {
+        local: {
+          get: async (key: string) => ({ [key]: stored[key] }),
+          set: async (values: Record<string, unknown>) => Object.assign(stored, values),
+        },
+      },
+    });
+    const current = migrateSettings();
+    await saveSettings({
+      ...current,
+      activeProviderId: 'minimax-cn-api',
+      apiKey: 'cn-api-key',
+      model: 'cn-model',
+      accounts: { ...current.accounts, 'minimax-cn-api': { ...current.accounts['minimax-cn-api'], apiKey: 'cn-api-key', model: 'cn-model' } },
+    });
+    const apiSettings = await getSettings();
+    await saveSettings({
+      ...apiSettings,
+      activeProviderId: 'minimax-plan',
+      apiKey: 'global-plan-key',
+      model: 'global-plan-model',
+      accounts: { ...apiSettings.accounts, 'minimax-plan': { ...apiSettings.accounts['minimax-plan'], apiKey: 'global-plan-key', model: 'global-plan-model' } },
+    });
+    const planSettings = await getSettings();
+    expect(planSettings.accounts['minimax-cn-api']).toMatchObject({ apiKey: 'cn-api-key', model: 'cn-model' });
+    expect(planSettings.accounts['minimax-plan']).toMatchObject({ apiKey: 'global-plan-key', model: 'global-plan-model' });
   });
   it('ignores a completed Kimi API key test after switching to Code Plan', async () => {
     let resolveTest: ((value: { ok: true }) => void) | undefined;

@@ -7,9 +7,8 @@
     <list default="true" id="53a96874-ad86-4f30-8e14-40a9a992c825" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/public/manifest.json" beforeDir="false" afterPath="$PROJECT_DIR$/public/manifest.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/shared/domain.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/shared/domain.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/shared/providers.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/shared/providers.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/shared/settings.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/shared/settings.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/shared/storage.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/shared/storage.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/tests/shared.test.ts" beforeDir="false" afterPath="$PROJECT_DIR$/tests/shared.test.ts" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -80,7 +79,7 @@
       <updated>1788513538203</updated>
       <workItem from="1788513539558" duration="5830000" />
       <workItem from="1788545342117" duration="9043000" />
-      <workItem from="1788657053161" duration="609000" />
+      <workItem from="1788657053161" duration="1751000" />
     </task>
     <task id="LOCAL-00001" summary="docs: update README.md">
       <option name="closed" value="true" />

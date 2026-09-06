@@ -1,7 +1,7 @@
 export type Language = 'C' | 'C++' | 'Java' | 'JavaScript' | 'TypeScript' | 'Python';
 export type Theme = 'light' | 'dark';
 export type Provider = string;
-export type ApiProtocol = 'openai-chat' | 'anthropic-messages' | 'openai-responses';
+export type ApiProtocol = 'openai-chat' | 'anthropic-messages';
 export type ErrorKind = 'configuration' | 'timeout' | 'http' | 'network' | 'stream' | 'unknown';
 
 export interface ProblemContext {
