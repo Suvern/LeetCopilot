@@ -8,3 +8,23 @@ playwright-report/
 test-results/
 *.local
 PROCESS.md
+
+# JetBrains local workspace state
+.idea/workspace.xml
+.idea/**/workspace.xml
+.idea/tasks.xml
+.idea/**/tasks.xml
+.idea/usage.statistics.xml
+.idea/**/usage.statistics.xml
+.idea/shelf/
+.idea/**/shelf/
+.idea/httpRequests/
+.idea/**/httpRequests/
+.idea/dataSources/
+.idea/**/dataSources/
+.idea/dataSources.local.xml
+.idea/**/dataSources.local.xml
+.idea/sqlDataSources.xml
+.idea/**/sqlDataSources.xml
+.idea/contentModel.xml
+.idea/**/contentModel.xml
