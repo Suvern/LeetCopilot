@@ -44,6 +44,15 @@ export const PROVIDERS: Record<Provider, ProviderPreset> = {
     apiKeysUrl: 'https://platform.kimi.com/console/api-keys',
     protocol: 'openai-chat',
   },
+  'kimi-code-plan': {
+    id: 'kimi-code-plan',
+    label: 'Kimi',
+    description: 'Code Plan',
+    endpoint: 'https://api.kimi.com/coding/v1/chat/completions',
+    defaultModel: 'kimi-for-coding',
+    apiKeysUrl: 'https://www.kimi.com/code',
+    protocol: 'openai-chat',
+  },
   zhipu: {
     id: 'zhipu',
     label: '智谱 GLM',

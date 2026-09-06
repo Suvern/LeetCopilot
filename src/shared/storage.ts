@@ -1,15 +1,15 @@
 import type { ChatMessage, ErrorLog, Settings } from './domain';
-import { normalizeSettings, type StoredSettings } from './settings';
+import { migrateSettings, type StoredSettings } from './settings-migration';
 import { getProviderPreset } from './providers';
 const settingsKey = 'leet-copilot:settings';
 const errorLogsKey = 'leet-copilot:error-logs';
 const historyKey = (id: string) => `leet-copilot:history:${id}`;
 export async function getSettings(): Promise<Settings> {
   const values = await chrome.storage.local.get(settingsKey);
-  return normalizeSettings(values[settingsKey] as StoredSettings | undefined);
+  return migrateSettings(values[settingsKey] as StoredSettings | undefined);
 }
 export async function saveSettings(settings: Settings) {
-  const normalized = normalizeSettings(settings);
+  const normalized = migrateSettings(settings);
   const legacyProviderIds = new Set(['deepseek', 'qwen']);
   const providerId = legacyProviderIds.has(normalized.activeProviderId) && normalized.provider !== normalized.activeProviderId
     ? normalized.provider

@@ -1,12 +1,15 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { createRoot } from 'solid-js';
 import { extractCodeAction, extractCodeBlock, normalizeLanguage, problemId, replaceLines } from '../src/shared/parse';
 import { parseSseEvent, parseSseLine } from '../src/shared/stream';
 import { buildKeyTestBody, buildStreamingBody, getProviderAdapter } from '../src/shared/provider-protocol';
 import { getProviderPreset, PROVIDERS } from '../src/shared/providers';
 import { streamAttempt, testProviderKey } from '../src/background/provider-client';
 import { buildContext, shortcutInstruction, userPrompt } from '../src/shared/prompt';
-import { getActiveAccount, normalizeSettings } from '../src/shared/settings';
+import { getActiveAccount } from '../src/shared/settings';
+import { migrateSettings } from '../src/shared/settings-migration';
 import { getSettings, saveSettings } from '../src/shared/storage';
+import { createSettingsController } from '../src/popup/settings-controller';
 import type { ChatRequest } from '../src/shared/messages';
 import type { ProblemContext } from '../src/shared/domain';
 
@@ -33,6 +36,7 @@ describe('shared helpers', () => {
     expect(PROVIDERS.qwen.protocol).toBe('openai-chat');
     expect(getProviderPreset('openai')).toMatchObject({ endpoint: 'https://api.openai.com/v1/chat/completions', defaultModel: 'gpt-4.1-mini' });
     expect(getProviderPreset('kimi-api')).toMatchObject({ label: 'Kimi', description: 'API', endpoint: 'https://api.moonshot.cn/v1/chat/completions' });
+    expect(getProviderPreset('kimi-code-plan')).toMatchObject({ label: 'Kimi', description: 'Code Plan', endpoint: 'https://api.kimi.com/coding/v1/chat/completions', defaultModel: 'kimi-for-coding' });
     expect(getProviderPreset('zhipu')).toMatchObject({ endpoint: 'https://open.bigmodel.cn/api/paas/v4/chat/completions', defaultModel: 'glm-4-flash' });
     expect(getProviderPreset('openrouter')).toMatchObject({ endpoint: 'https://openrouter.ai/api/v1/chat/completions', defaultModel: 'openai/gpt-4.1-mini' });
     expect(getProviderPreset('missing-provider')).toBeUndefined();
@@ -71,6 +75,25 @@ describe('shared helpers', () => {
       body: expect.stringContaining('openai/gpt-4.1-mini'),
     }));
   });
+  it('streams a complete Kimi Code Plan response through its isolated endpoint', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('data: {"choices":[{"delta":{"content":"plan"}}]}\n\ndata: [DONE]\n\n'));
+        controller.close();
+      },
+    }), { status: 200, statusText: 'OK' }));
+    vi.stubGlobal('fetch', fetchMock);
+    const config = getProviderPreset('kimi-code-plan')!;
+    const deltas: string[] = [];
+
+    await streamAttempt(chatRequest, { providerId: 'kimi-code-plan', apiKey: 'plan-key', model: 'kimi-for-coding' }, config, new AbortController(), async (text) => { deltas.push(text); });
+
+    expect(deltas).toEqual(['plan']);
+    expect(fetchMock).toHaveBeenCalledWith('https://api.kimi.com/coding/v1/chat/completions', expect.objectContaining({
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer plan-key' },
+      body: expect.stringContaining('kimi-for-coding'),
+    }));
+  });
   it('preserves the provider diagnostic when an OpenAI Chat service returns an HTTP error', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('denied', { status: 401, statusText: 'Unauthorized' })));
     const config = getProviderPreset('openai')!;
@@ -78,12 +101,12 @@ describe('shared helpers', () => {
     await expect(streamAttempt(chatRequest, { providerId: 'openai', apiKey: 'openai-key', model: 'gpt-4.1-mini' }, config, new AbortController(), async () => {}))
       .rejects.toMatchObject({ diagnostic: { kind: 'http', status: 401, details: 'denied' } });
   });
-  it('normalizes legacy settings into the current shape', () => {
-    expect(normalizeSettings({ provider: 'qwen', apiKey: 'legacy-key' })).toMatchObject({ provider: 'qwen', apiKey: 'legacy-key', apiKeys: { qwen: 'legacy-key' } });
-    expect(normalizeSettings({ provider: 'deepseek', apiKeys: { qwen: 'qwen-key' } })).toMatchObject({ provider: 'deepseek', apiKey: '', apiKeys: { qwen: 'qwen-key' } });
+  it('migrates v0.1.0 settings into the current shape', () => {
+    expect(migrateSettings({ provider: 'qwen', apiKey: 'legacy-key' })).toMatchObject({ provider: 'qwen', apiKey: 'legacy-key', apiKeys: { qwen: 'legacy-key' } });
+    expect(migrateSettings({ provider: 'deepseek', apiKeys: { qwen: 'qwen-key' } })).toMatchObject({ provider: 'deepseek', apiKey: '', apiKeys: { qwen: 'qwen-key' } });
   });
   it('creates isolated built-in accounts while migrating legacy settings', () => {
-    const settings = normalizeSettings({ provider: 'qwen', apiKey: 'qwen-key', model: 'qwen-custom' });
+    const settings = migrateSettings({ provider: 'qwen', apiKey: 'qwen-key', model: 'qwen-custom' });
     expect(settings.schemaVersion).toBe(2);
     expect(settings.activeProviderId).toBe('qwen');
     expect(settings.accounts.qwen).toMatchObject({
@@ -94,14 +117,74 @@ describe('shared helpers', () => {
     expect(getActiveAccount(settings)).toMatchObject({ providerId: 'qwen', apiKey: 'qwen-key' });
   });
   it('creates separate default accounts for all built-in OpenAI Chat providers', () => {
-    const settings = normalizeSettings();
+    const settings = migrateSettings();
     expect(settings.accounts.openai).toMatchObject({ providerId: 'openai', model: 'gpt-4.1-mini' });
     expect(settings.accounts['kimi-api']).toMatchObject({ providerId: 'kimi-api', model: 'kimi-k2.7-code' });
+    expect(settings.accounts['kimi-code-plan']).toMatchObject({ providerId: 'kimi-code-plan', model: 'kimi-for-coding' });
     expect(settings.accounts.zhipu).toMatchObject({ providerId: 'zhipu', model: 'glm-4-flash' });
     expect(settings.accounts.openrouter).toMatchObject({ providerId: 'openrouter', model: 'openai/gpt-4.1-mini' });
   });
+  it('keeps Kimi API and Code Plan accounts isolated when switching', async () => {
+    const stored: Record<string, unknown> = {};
+    vi.stubGlobal('chrome', {
+      storage: {
+        local: {
+          get: async (key: string) => ({ [key]: stored[key] }),
+          set: async (values: Record<string, unknown>) => Object.assign(stored, values),
+        },
+      },
+    });
+    const current = migrateSettings();
+    await saveSettings({
+      ...current,
+      activeProviderId: 'kimi-api',
+      apiKey: 'api-key',
+      model: 'api-model',
+      accounts: { ...current.accounts, 'kimi-api': { ...current.accounts['kimi-api'], apiKey: 'api-key', model: 'api-model' } },
+    });
+    const apiSettings = await getSettings();
+    await saveSettings({
+      ...apiSettings,
+      activeProviderId: 'kimi-code-plan',
+      apiKey: 'plan-key',
+      model: 'plan-model',
+      accounts: { ...apiSettings.accounts, 'kimi-code-plan': { ...apiSettings.accounts['kimi-code-plan'], apiKey: 'plan-key', model: 'plan-model' } },
+    });
+    const planSettings = await getSettings();
+    expect(planSettings.accounts['kimi-api']).toMatchObject({ apiKey: 'api-key', model: 'api-model' });
+    expect(planSettings.accounts['kimi-code-plan']).toMatchObject({ apiKey: 'plan-key', model: 'plan-model' });
+  });
+  it('ignores a completed Kimi API key test after switching to Code Plan', async () => {
+    let resolveTest: ((value: { ok: true }) => void) | undefined;
+    const testPromise = new Promise<{ ok: true }>((resolve) => { resolveTest = resolve; });
+    const sendMessage = vi.fn().mockReturnValue(testPromise);
+    const setStorage = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal('chrome', {
+      runtime: { sendMessage },
+      storage: { local: { get: async () => ({}), set: setStorage } },
+    });
+
+    let controller!: ReturnType<typeof createSettingsController>;
+    let dispose!: () => void;
+    createRoot((rootDispose) => {
+      controller = createSettingsController();
+      controller.changeProvider('kimi-api');
+      controller.update('apiKey', 'api-key');
+      dispose = rootDispose;
+    });
+    const pending = controller.testAndSave();
+    await Promise.resolve();
+    controller.changeProvider('kimi-code-plan');
+    resolveTest?.({ ok: true });
+    await pending;
+
+    expect(sendMessage).toHaveBeenCalledWith({ type: 'test-key', provider: 'kimi-api', apiKey: 'api-key', model: 'kimi-k2.7-code' });
+    expect(setStorage).not.toHaveBeenCalled();
+    expect(controller.status()).toEqual({ kind: 'idle', message: '' });
+    dispose();
+  });
   it('preserves custom and mode-specific accounts without making them legacy providers', () => {
-    const settings = normalizeSettings({
+    const settings = migrateSettings({
       provider: 'deepseek',
       activeProviderId: 'kimi-code-plan',
       accounts: {
@@ -130,7 +213,7 @@ describe('shared helpers', () => {
       },
     });
 
-    const current = normalizeSettings();
+    const current = migrateSettings();
     const switchedSettings = {
       ...current,
       provider: 'qwen' as const,
@@ -156,7 +239,7 @@ describe('shared helpers', () => {
         },
       },
     });
-    const current = normalizeSettings();
+    const current = migrateSettings();
     await saveSettings({
       ...current,
       activeProviderId: 'kimi-api',
@@ -181,7 +264,7 @@ describe('shared helpers', () => {
       },
     });
 
-    const settings = normalizeSettings({
+    const settings = migrateSettings({
       activeProviderId: 'custom:local',
       accounts: {
         'custom:local': {
