@@ -23,6 +23,7 @@
     "lint": "eslint .",
     "test": "pnpm run test:unit",
     "test:unit": "vitest run",
+    "test:api": "vitest run tests/api.test.ts",
     "test:watch": "vitest",
     "test:e2e": "node tests/browser-smoke.mjs && node tests/stream-smoke.mjs",
     "test:smoke": "pnpm run test:e2e"
