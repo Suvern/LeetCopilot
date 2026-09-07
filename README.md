@@ -35,7 +35,7 @@ LeetCopilot 没有后端和服务器，在弹窗中填写 API 密钥后，密钥
 
 ### 从源码安装
 
-需要 Node.js 20 或更高版本
+需要 Node.js 22.13 或更高版本
 
 ```bash
 pnpm install
