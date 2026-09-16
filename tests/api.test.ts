@@ -19,14 +19,14 @@ const API_TEST_CONFIGS: ApiTestConfig[] = [
   { label: '千问', providerId: 'qwen', keyVariable: 'API_TEST_QWEN_KEY', modelVariable: 'API_TEST_QWEN_MODEL', defaultModel: 'qwen-turbo' },
   { label: 'OpenAI', providerId: 'openai', keyVariable: 'API_TEST_OPENAI_KEY', modelVariable: 'API_TEST_OPENAI_MODEL', defaultModel: 'gpt-4o-mini' },
   { label: 'Anthropic', providerId: 'anthropic', keyVariable: 'API_TEST_ANTHROPIC_KEY', modelVariable: 'API_TEST_ANTHROPIC_MODEL', defaultModel: 'claude-3-5-haiku-20241022' },
-  { label: 'Kimi API', providerId: 'kimi-api', keyVariable: 'API_TEST_KIMI_API_KEY', modelVariable: 'API_TEST_KIMI_API_MODEL', defaultModel: 'moonshot-v1-8k' },
+  { label: 'Kimi API', providerId: 'kimi-api', keyVariable: 'API_TEST_KIMI_API_KEY', modelVariable: 'API_TEST_KIMI_API_MODEL', defaultModel: 'kimi-k2.7-code-highspeed' },
   { label: 'Kimi Code Plan', providerId: 'kimi-code-plan', keyVariable: 'API_TEST_KIMI_CODE_PLAN_KEY', modelVariable: 'API_TEST_KIMI_CODE_PLAN_MODEL', defaultModel: 'kimi-for-coding' },
   { label: 'MiniMax CN API', providerId: 'minimax-cn-api', keyVariable: 'API_TEST_MINIMAX_CN_API_KEY', modelVariable: 'API_TEST_MINIMAX_CN_API_MODEL', defaultModel: 'MiniMax-M3' },
   { label: 'MiniMax CN Token Plan', providerId: 'minimax-cn-plan', keyVariable: 'API_TEST_MINIMAX_CN_PLAN_KEY', modelVariable: 'API_TEST_MINIMAX_CN_PLAN_MODEL', defaultModel: 'MiniMax-M3' },
   { label: 'MiniMax API', providerId: 'minimax-api', keyVariable: 'API_TEST_MINIMAX_API_KEY', modelVariable: 'API_TEST_MINIMAX_API_MODEL', defaultModel: 'MiniMax-M3' },
   { label: 'MiniMax Token Plan', providerId: 'minimax-plan', keyVariable: 'API_TEST_MINIMAX_PLAN_KEY', modelVariable: 'API_TEST_MINIMAX_PLAN_MODEL', defaultModel: 'MiniMax-M3' },
-  { label: '智谱 GLM', providerId: 'zhipu', keyVariable: 'API_TEST_ZHIPU_KEY', modelVariable: 'API_TEST_ZHIPU_MODEL', defaultModel: 'glm-4-flash' },
-  { label: 'OpenRouter', providerId: 'openrouter', keyVariable: 'API_TEST_OPENROUTER_KEY', modelVariable: 'API_TEST_OPENROUTER_MODEL', defaultModel: 'google/gemini-2.0-flash-lite-001' },
+  { label: '智谱 GLM（BigModel）', providerId: 'zhipu', keyVariable: 'API_TEST_ZHIPU_KEY', modelVariable: 'API_TEST_ZHIPU_MODEL', defaultModel: 'GLM-4.7-FlashX' },
+  { label: 'OpenRouter', providerId: 'openrouter', keyVariable: 'API_TEST_OPENROUTER_KEY', modelVariable: 'API_TEST_OPENROUTER_MODEL', defaultModel: 'google/gemini-3.8-flash' },
 ];
 
 function accountFor(config: ApiTestConfig): ProviderAccount {

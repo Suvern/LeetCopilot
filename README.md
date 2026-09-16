@@ -23,7 +23,7 @@ LeetCopilot 没有后端和服务器，在弹窗中填写 API 密钥后，密钥
 - [<img src="https://unpkg.com/@lobehub/icons-static-webp@latest/light/qwen-color.webp" alt="千问" height="36" align="center">](https://www.qianwenai.com/) 千问
 - [<img src="https://unpkg.com/@lobehub/icons-static-webp@latest/light/openai.webp" alt="OpenAI" height="36" align="center">](https://platform.openai.com/) OpenAI
 - [<img src="https://unpkg.com/@lobehub/icons-static-webp@latest/light/anthropic.webp" alt="Anthropic" height="36" align="center">](https://console.anthropic.com/) Anthropic
-- [<img src="https://unpkg.com/@lobehub/icons-static-webp@latest/light/zhipu-color.webp" alt="智谱 GLM" height="36" align="center">](https://open.bigmodel.cn/) 智谱 GLM
+- [<img src="https://unpkg.com/@lobehub/icons-static-webp@latest/light/zhipu-color.webp" alt="智谱 GLM（BigModel）" height="36" align="center">](https://open.bigmodel.cn/) 智谱 GLM（BigModel）
 - [<img src="https://unpkg.com/@lobehub/icons-static-webp@latest/light/openrouter-color.webp" alt="OpenRouter" height="36" align="center">](https://openrouter.ai/) OpenRouter
 - [<img src="https://unpkg.com/@lobehub/icons-static-webp@latest/light/moonshot.webp" alt="Kimi" height="36" align="center">](https://platform.kimi.com/) Kimi
 - [<img src="https://unpkg.com/@lobehub/icons-static-webp@latest/light/minimax-color.webp" alt="MiniMax CN" height="36" align="center">](https://platform.minimaxi.com/) MiniMax CN
