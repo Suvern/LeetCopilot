@@ -101,7 +101,7 @@ export const PROVIDERS: Record<Provider, ProviderPreset> = {
     id: 'zhipu',
     label: '智谱 GLM（BigModel）',
     endpoint: 'https://open.bigmodel.cn/api/paas/v4/chat/completions',
-    defaultModel: 'GLM-4.7-FlashX',
+    defaultModel: 'glm-5.3-flash',
     apiKeysUrl: 'https://open.bigmodel.cn/usercenter/proj-mgmt/apikeys',
     protocol: 'openai-chat',
   },

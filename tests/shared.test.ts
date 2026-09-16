@@ -43,7 +43,7 @@ describe('shared helpers', () => {
     expect(getProviderPreset('minimax-cn-plan')).toMatchObject({ label: 'MiniMax CN', description: 'Token Plan', endpoint: 'https://api.minimax.cn/v1/chat/completions', defaultModel: 'MiniMax-M3', apiKeysUrl: 'https://platform.minimaxi.com/user-center/payment/token-plan', protocol: 'openai-chat' });
     expect(getProviderPreset('minimax-api')).toMatchObject({ label: 'MiniMax', description: 'API', endpoint: 'https://api.minimax.io/v1/chat/completions', defaultModel: 'MiniMax-M3', apiKeysUrl: 'https://platform.minimax.io/user-center/basic-information/interface-key', protocol: 'openai-chat' });
     expect(getProviderPreset('minimax-plan')).toMatchObject({ label: 'MiniMax', description: 'Token Plan', endpoint: 'https://api.minimax.io/v1/chat/completions', defaultModel: 'MiniMax-M3', apiKeysUrl: 'https://platform.minimax.io/user-center/payment/token-plan', protocol: 'openai-chat' });
-    expect(getProviderPreset('zhipu')).toMatchObject({ label: '智谱 GLM（BigModel）', endpoint: 'https://open.bigmodel.cn/api/paas/v4/chat/completions', defaultModel: 'GLM-4.7-FlashX' });
+    expect(getProviderPreset('zhipu')).toMatchObject({ label: '智谱 GLM（BigModel）', endpoint: 'https://open.bigmodel.cn/api/paas/v4/chat/completions', defaultModel: 'glm-5.3-flash' });
     expect(getProviderPreset('openrouter')).toMatchObject({ endpoint: 'https://openrouter.ai/api/v1/chat/completions', defaultModel: 'openai/gpt-4.1-mini' });
     expect(getProviderPreset('missing-provider')).toBeUndefined();
   });
@@ -200,7 +200,7 @@ describe('shared helpers', () => {
     expect(settings.accounts['minimax-cn-plan']).toMatchObject({ providerId: 'minimax-cn-plan', model: 'MiniMax-M3' });
     expect(settings.accounts['minimax-api']).toMatchObject({ providerId: 'minimax-api', model: 'MiniMax-M3' });
     expect(settings.accounts['minimax-plan']).toMatchObject({ providerId: 'minimax-plan', model: 'MiniMax-M3' });
-    expect(settings.accounts.zhipu).toMatchObject({ providerId: 'zhipu', model: 'GLM-4.7-FlashX' });
+    expect(settings.accounts.zhipu).toMatchObject({ providerId: 'zhipu', model: 'glm-5.3-flash' });
     expect(settings.accounts.openrouter).toMatchObject({ providerId: 'openrouter', model: 'openai/gpt-4.1-mini' });
   });
   it('keeps Kimi API and Code Plan accounts isolated when switching', async () => {

@@ -25,7 +25,7 @@ const API_TEST_CONFIGS: ApiTestConfig[] = [
   { label: 'MiniMax CN Token Plan', providerId: 'minimax-cn-plan', keyVariable: 'API_TEST_MINIMAX_CN_PLAN_KEY', modelVariable: 'API_TEST_MINIMAX_CN_PLAN_MODEL', defaultModel: 'MiniMax-M3' },
   { label: 'MiniMax API', providerId: 'minimax-api', keyVariable: 'API_TEST_MINIMAX_API_KEY', modelVariable: 'API_TEST_MINIMAX_API_MODEL', defaultModel: 'MiniMax-M3' },
   { label: 'MiniMax Token Plan', providerId: 'minimax-plan', keyVariable: 'API_TEST_MINIMAX_PLAN_KEY', modelVariable: 'API_TEST_MINIMAX_PLAN_MODEL', defaultModel: 'MiniMax-M3' },
-  { label: '智谱 GLM（BigModel）', providerId: 'zhipu', keyVariable: 'API_TEST_ZHIPU_KEY', modelVariable: 'API_TEST_ZHIPU_MODEL', defaultModel: 'GLM-4.7-FlashX' },
+  { label: '智谱 GLM（BigModel）', providerId: 'zhipu', keyVariable: 'API_TEST_ZHIPU_KEY', modelVariable: 'API_TEST_ZHIPU_MODEL', defaultModel: 'glm-5.3-flash' },
   { label: 'OpenRouter', providerId: 'openrouter', keyVariable: 'API_TEST_OPENROUTER_KEY', modelVariable: 'API_TEST_OPENROUTER_MODEL', defaultModel: 'google/gemini-3.8-flash' },
 ];
 

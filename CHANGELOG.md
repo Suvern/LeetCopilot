@@ -8,7 +8,7 @@
 
 - 支持保存多个 AI 平台账户，并可在设置中随时切换；每个平台独立保存 API Key 和模型名称。
 - 新增 OpenAI、Anthropic、Kimi API、Kimi Code Plan、MiniMax CN API、MiniMax CN Token Plan、MiniMax API、MiniMax Token Plan、智谱 GLM 与 OpenRouter 预置平台。
-- 智谱平台名称补充为“智谱 GLM（BigModel）”，默认模型更新为官方高速模型 `GLM-4.7-FlashX`。
+- 智谱平台名称补充为“智谱 GLM（BigModel）”，默认模型更新为 `glm-5.3-flash`。
 - 支持自定义兼容 OpenAI Chat Completions 或 Anthropic Messages 的平台，可填写名称、Base URL、模型和协议。
 - 新增 Anthropic Messages 请求与流式响应适配。
 - 新增 API Key 可用性测试，以及各平台的回归/API 可用性测试覆盖。
