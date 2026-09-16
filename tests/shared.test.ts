@@ -338,6 +338,32 @@ describe('shared helpers', () => {
     expect(settings.activeProviderId).toBe('qwen');
     expect(settings.accounts.qwen).toMatchObject({ apiKey: 'qwen-key', model: 'qwen-custom' });
   });
+  it('persists a Qwen selection made from the provider switcher', async () => {
+    const stored: Record<string, unknown> = {};
+    vi.stubGlobal('chrome', {
+      storage: {
+        local: {
+          get: async (key: string) => ({ [key]: stored[key] }),
+          set: async (values: Record<string, unknown>) => Object.assign(stored, values),
+        },
+      },
+    });
+
+    const current = migrateSettings();
+    await saveSettings({
+      ...current,
+      activeProviderId: 'qwen',
+      apiKey: 'qwen-key',
+      model: 'qwen-plus',
+      accounts: { ...current.accounts, qwen: { ...current.accounts.qwen, apiKey: 'qwen-key', model: 'qwen-plus' } },
+    });
+
+    const settings = await getSettings();
+    expect(settings.activeProviderId).toBe('qwen');
+    expect(settings.accounts.qwen).toMatchObject({ apiKey: 'qwen-key', model: 'qwen-plus' });
+    expect(settings.apiKeys.qwen).toBe('qwen-key');
+    expect(settings.accounts.deepseek).toMatchObject({ apiKey: '' });
+  });
   it('keeps newly added provider accounts independent when saving the active account', async () => {
     const stored: Record<string, unknown> = {};
     vi.stubGlobal('chrome', {

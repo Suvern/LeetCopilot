@@ -10,10 +10,9 @@ export async function getSettings(): Promise<Settings> {
 }
 export async function saveSettings(settings: Settings) {
   const normalized = migrateSettings(settings);
-  const legacyProviderIds = new Set(['deepseek', 'qwen']);
-  const providerId = legacyProviderIds.has(normalized.activeProviderId) && normalized.provider !== normalized.activeProviderId
-    ? normalized.provider
-    : normalized.activeProviderId;
+  // The active account is authoritative. The legacy `provider` field is kept
+  // for backwards compatibility, but must not override a current selection.
+  const providerId = normalized.activeProviderId;
   const account = normalized.accounts[providerId];
   const apiKey = normalized.apiKey.trim();
   const model = normalized.model.trim() || account?.model || getProviderPreset(providerId)?.defaultModel || '';
@@ -28,7 +27,7 @@ export async function saveSettings(settings: Settings) {
       apiKey,
       model,
       accounts,
-      apiKeys: { ...normalized.apiKeys, [normalized.provider]: normalized.provider === providerId ? apiKey : normalized.apiKeys[normalized.provider] },
+      apiKeys: { ...normalized.apiKeys, [providerId]: apiKey },
     },
   });
 }
