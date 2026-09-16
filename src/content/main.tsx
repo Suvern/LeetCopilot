@@ -17,7 +17,7 @@ function App() {
     <div class="leetcopilot-tabset">
       <div class="panel-content" aria-hidden={!panel.open()}>
         <div class="resize" onMouseDown={panel.resize} />
-        <PanelHeader title={panel.context().title} onCollapse={() => panel.setOpen(false)} />
+        <PanelHeader title={panel.context().title} updateAvailable={panel.updateAvailable()} latestVersion={panel.latestVersion()} useChromeWebStore={panel.useChromeWebStore()} onOpenRelease={() => void panel.openRelease()} onCollapse={() => panel.setOpen(false)} />
         <ShortcutRow busy={panel.busy()} onSend={(text) => void panel.send(text)} />
         <MessageList panel={panel} />
         <Composer panel={panel} />

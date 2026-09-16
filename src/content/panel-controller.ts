@@ -4,6 +4,7 @@ import { getProviderPreset } from '../shared/providers';
 import { getActiveAccount } from '../shared/settings';
 import { extractCodeAction } from '../shared/parse';
 import type { BackgroundEvent } from '../shared/messages';
+import type { VersionCheckResponse } from '../shared/messages';
 import type { ChatMessage, ErrorLog, ProblemContext, Theme } from '../shared/domain';
 import { extractContext, extractContextWithEditor } from './context-extractor';
 import { host, mountHost, syncLayout } from './layout';
@@ -22,6 +23,9 @@ export interface PanelController {
   width: Accessor<number>;
   theme: Accessor<Theme | 'auto'>;
   hasApiKey: Accessor<boolean>;
+  updateAvailable: Accessor<boolean>;
+  latestVersion: Accessor<string | undefined>;
+  useChromeWebStore: Accessor<boolean>;
   setDraft: (value: string) => void;
   setOpen: (value: boolean) => void;
   setShowErrorLogs: (value: boolean) => void;
@@ -34,6 +38,7 @@ export interface PanelController {
   copy: (text: string) => Promise<void>;
   reset: () => Promise<void>;
   openErrorLogs: () => Promise<void>;
+  openRelease: () => Promise<void>;
   onConversationScroll: (event: Event) => void;
   setScrollArea: (element: HTMLDivElement) => void;
 }
@@ -55,6 +60,10 @@ export function createPanelController(): PanelController {
   const [theme, setTheme] = createSignal<Theme | 'auto'>('auto');
   const [hideNativeLeet, setHideNativeLeet] = createSignal(false);
   const [hasApiKey, setHasApiKey] = createSignal(false);
+  const [updateAvailable, setUpdateAvailable] = createSignal(false);
+  const [latestVersion, setLatestVersion] = createSignal<string>();
+  const [releaseUrl, setReleaseUrl] = createSignal<string>();
+  const [useChromeWebStore, setUseChromeWebStore] = createSignal(false);
   let requestId = '';
   let scrollArea: HTMLDivElement | undefined;
   let stickToBottom = true;
@@ -227,8 +236,24 @@ export function createPanelController(): PanelController {
     setShowErrorLogs(true);
   };
 
+  const openRelease = async () => {
+    await chrome.runtime.sendMessage({ type: 'open-release', url: releaseUrl() });
+  };
+
   onMount(() => {
     void refresh();
+    void (async () => {
+      try {
+        const response = await chrome.runtime.sendMessage({ type: 'check-version' }) as VersionCheckResponse;
+        if (!response?.ok || !response.updateAvailable) return;
+        setUpdateAvailable(true);
+        setLatestVersion(response.latestVersion);
+        setReleaseUrl(response.updateUrl ?? response.releaseUrl);
+        setUseChromeWebStore(response.useChromeWebStore === true);
+      } catch {
+        // Version checks are best-effort and must not block the panel.
+      }
+    })();
     void getSettings().then((settings) => {
       setHasApiKey(Object.values(settings.accounts).some((account) => account.apiKey.trim()));
       setTheme(settings.theme);
@@ -287,10 +312,10 @@ export function createPanelController(): PanelController {
   });
 
   return {
-    context, messages, draft, open, busy, error, errorLogs, errorLogId, showErrorLogs, receivedToken, width, theme, hasApiKey,
+    context, messages, draft, open, busy, error, errorLogs, errorLogId, showErrorLogs, receivedToken, width, theme, hasApiKey, updateAvailable, latestVersion, useChromeWebStore,
     setDraft, setOpen, setShowErrorLogs, clearError, refresh, send, cancel, applyCode, resize,
     copy: async (text) => { await navigator.clipboard.writeText(text); },
-    reset, openErrorLogs,
+    reset, openErrorLogs, openRelease,
     onConversationScroll: (event) => {
       const target = event.currentTarget as HTMLDivElement;
       stickToBottom = target.scrollHeight - target.scrollTop - target.clientHeight < 32;

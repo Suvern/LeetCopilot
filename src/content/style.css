@@ -18,10 +18,15 @@
 @media (prefers-color-scheme:dark) { .leetcopilot[data-theme="auto"] { --ll-bg:#1f1f1f; --ll-fg:#e6e6e6; --ll-muted:#999; --ll-line:#3a3a3a; --ll-hover:#2a2a2a; --ll-accent:#36c982; } }
 .leetcopilot[data-theme="dark"] { --ll-bg:#1f1f1f; --ll-fg:#e6e6e6; --ll-muted:#999; --ll-line:#3a3a3a; --ll-hover:#2a2a2a; --ll-accent:#36c982; }
 .resize { position:absolute; top:0; left:-4px; z-index:3; width:8px; height:100%; cursor:col-resize; }
-.panel-header { display:flex; min-height:42px; align-items:stretch; padding:0 7px 0 0; border-bottom:1px solid var(--ll-line); background:var(--ll-bg); }
+.panel-header { display:flex; min-height:42px; flex-direction:column; padding:0 7px 8px 0; border-bottom:1px solid var(--ll-line); background:var(--ll-bg); }
+.panel-header-main { display:flex; min-height:42px; align-items:stretch; }
 .active-tab { display:flex; flex:0 0 auto; align-items:center; gap:7px; min-width:0; padding:0 11px; color:var(--ll-fg); border-bottom:2px solid var(--ll-accent); font-size:13px; font-weight:650; }
 .logo { display:block; width:20px; height:20px; flex:0 0 auto; object-fit:contain; }
 .problem-title { overflow:hidden; min-width:0; flex:1 1 auto; align-self:center; padding-left:9px; color:var(--ll-muted); font-size:11px; text-overflow:ellipsis; white-space:nowrap; }
+.update-card { display:grid; gap:3px; margin:0 0 0 11px; border:1px solid color-mix(in srgb,var(--ll-accent) 35%,var(--ll-line)); border-radius:7px; padding:8px 10px; color:var(--ll-fg); background:color-mix(in srgb,var(--ll-accent) 8%,var(--ll-bg)); cursor:pointer; text-align:left; }
+.update-card strong { color:var(--ll-accent); font-size:11px; }
+.update-card span { color:var(--ll-muted); font-size:11px; line-height:1.45; }
+.update-card:hover { border-color:var(--ll-accent); background:color-mix(in srgb,var(--ll-accent) 14%,var(--ll-bg)); }
 button { font:inherit; }
 .header-actions { display:flex; gap:2px; }
 .header-actions button,.error button,.error-logs button { border:0; border-radius:4px; padding:4px 7px; color:var(--ll-muted); background:transparent; cursor:pointer; }
