@@ -10,8 +10,7 @@ LeetCopilot - AI LeetCode Assistant
 
 **Short Description**
 <!-- Max 132 characters. Shown in search results and tiles. Be specific about function. -->
-Adds a Chinese AI coding assistant to leetcode.cn problem pages. Streams hints, code,
-and editor edits powered by DeepSeek or 通义千问. Bring your own API key.
+AI coding assistant for leetcode.cn with streaming hints and one-click code edits. Supports DeepSeek and Qwen with your own API key.
 
 **Detailed Description**
 <!-- Max 16,000 characters. WRITE FROM A USER'S PERSPECTIVE — what the extension
@@ -29,8 +28,8 @@ LeetCopilot 把一个 AI 编程助手直接放进你的 LeetCode 题目页。
 - 优化复杂度 — 给出时间和空间复杂度更优的写法
 - 生成完整解法 — 直接产出可运行的代码
 
-AI 的回复是流式的，逐字打出，不必等待。回复里的代码可以一键应用到编辑器，AI 会
-按 LeetCode 编辑器的格式自动套用缩进和补全括号。
+AI 的回复是流式的，逐字打出，不必等待。回复里的完整代码或带行号的局部修改可以一键
+应用到编辑器，并支持编辑器撤销。
 
 如果你不想看到 LeetCode 自带的"Leet"付费助手，弹窗里有个开关可以一键隐藏。
 
@@ -46,7 +45,7 @@ AI 的回复是流式的，逐字打出，不必等待。回复里的代码可�
 - 扩展只把题目信息、你的代码、对话消息发给你自己选择的服务商
 - 不收集任何分析数据，不投放广告，不混淆代码，全部源码公开在 GitHub
 
-支持语言：C、C++、Java、JavaScript、Python
+支持语言：C、C++、Java、JavaScript、TypeScript、Python
 
 需要帮助或提交反馈：https://github.com/Suvern/LeetCopilot/issues
 
@@ -64,8 +63,8 @@ or use the shortcut buttons for:
 - Optimize complexity — propose a faster or leaner solution
 - Generate a full solution — drop in runnable code
 
-Replies stream token by token. Code blocks in the reply can be applied to the editor
-with one click; LeetCopilot matches LeetCode's indentation and bracket style.
+Replies stream token by token. Full solution code or line-numbered partial edits can be
+applied to the editor with one click; undo is supported.
 
 If you want to hide LeetCode's paid "Leet" assistant, there's a toggle in the popup.
 
@@ -84,7 +83,7 @@ Privacy & safety:
   you selected
 - No analytics, no ads, no obfuscation. Full source on GitHub
 
-Supported languages: C, C++, Java, JavaScript, Python
+Supported languages: C, C++, Java, JavaScript, TypeScript, Python
 
 Support & feedback: https://github.com/Suvern/LeetCopilot/issues
 
@@ -105,7 +104,7 @@ Chinese (Simplified) — also documented in English above.
 | Asset | Dimensions | Status | Filename / Location |
 |-------|-----------|--------|---------------------|
 | Store Icon [REQUIRED] | 128×128 PNG | ✅ Ready | `public/leetcopilot-icon-128.png` |
-| Screenshot 1 [REQUIRED] | 1280×800 or 640×400 | 🔴 Needs update | `docs/media/workspace.png` is 1440×876 — needs cropping |
+| Screenshot 1 [REQUIRED] | 1280×800 or 640×400 | 🔴 Needs update | `docs/media/workspace.png` is 3444×2124 — needs re-capture at 1280×800 |
 | Screenshot 2 [RECOMMENDED] | 1280×800 or 640×400 | 🔴 Needs update | Re-screenshot popup settings in 1280×800 |
 | Screenshot 3 [RECOMMENDED] | 1280×800 or 640×400 | 🔴 Needs update | Re-screenshot streaming reply in 1280×800 |
 | Screenshot 4 | 1280×800 or 640×400 | 🔴 Needs update | Re-screenshot editor-apply result |
@@ -151,7 +150,7 @@ Chinese (Simplified) — also documented in English above.
 | Health info | No | — | — | — |
 | Financial info | No | — | — | — |
 | Authentication info (API keys) | Yes — entered by user, stored locally only | Only as Bearer token to the AI provider you selected | Authenticate requests to the AI provider | Only to the AI provider you selected, as a Bearer token in HTTPS requests |
-| Personal communications | No | — | — | — |
+| Personal communications | Yes — user prompts and AI replies | Only to your selected AI provider to generate responses | Provide the conversational assistant experience | Only to the AI provider you selected |
 | Location | No | — | — | — |
 | Web history | No | — | — | — |
 | User activity (LeetCode problem context + editor code, only on `leetcode.cn/problems/*`) | Yes — read from the active problem page | Sent to your selected AI provider with each chat request | Build the prompt for the AI assistant | Only to the AI provider you selected |

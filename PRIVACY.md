@@ -74,8 +74,7 @@ The extension declares the following in `manifest.json` / 扩展在 `manifest.js
 
 - Chat history: last 30 messages per problem, stored only on your device. / 对话历史：每题最多保留 30 条，仅存于本机
 - Error logs: last 50 entries, stored only on your device. / 错误日志：最多保留 50 条，仅存于本机
-- API keys, settings: stored until you uninstall the extension or click "Clear" in the
-  popup. / API Key、设置：一直保留直到你卸载扩展或在弹窗中点击「清除」
+- API keys, settings: stored until you uninstall the extension. / API Key、设置：一直保留直到你卸载扩展。
 
 Uninstalling the extension removes all data stored by LeetCopilot.
 卸载扩展即删除全部 LeetCopilot 存储的数据。
