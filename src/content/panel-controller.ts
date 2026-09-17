@@ -1,7 +1,10 @@
 import { batch, createEffect, createSignal, onCleanup, onMount, type Accessor } from 'solid-js';
 import { clearErrorLogs, clearHistory, getErrorLogs, getHistory, getSettings, saveHistory } from '../shared/storage';
+import { getProviderPreset } from '../shared/providers';
+import { getActiveAccount } from '../shared/settings';
 import { extractCodeAction } from '../shared/parse';
 import type { BackgroundEvent } from '../shared/messages';
+import type { VersionCheckResponse } from '../shared/messages';
 import type { ChatMessage, ErrorLog, ProblemContext, Theme } from '../shared/domain';
 import { extractContext, extractContextWithEditor } from './context-extractor';
 import { host, mountHost, syncLayout } from './layout';
@@ -20,6 +23,9 @@ export interface PanelController {
   width: Accessor<number>;
   theme: Accessor<Theme | 'auto'>;
   hasApiKey: Accessor<boolean>;
+  updateAvailable: Accessor<boolean>;
+  latestVersion: Accessor<string | undefined>;
+  useChromeWebStore: Accessor<boolean>;
   setDraft: (value: string) => void;
   setOpen: (value: boolean) => void;
   setShowErrorLogs: (value: boolean) => void;
@@ -32,6 +38,7 @@ export interface PanelController {
   copy: (text: string) => Promise<void>;
   reset: () => Promise<void>;
   openErrorLogs: () => Promise<void>;
+  openRelease: () => Promise<void>;
   onConversationScroll: (event: Event) => void;
   setScrollArea: (element: HTMLDivElement) => void;
 }
@@ -53,6 +60,10 @@ export function createPanelController(): PanelController {
   const [theme, setTheme] = createSignal<Theme | 'auto'>('auto');
   const [hideNativeLeet, setHideNativeLeet] = createSignal(false);
   const [hasApiKey, setHasApiKey] = createSignal(false);
+  const [updateAvailable, setUpdateAvailable] = createSignal(false);
+  const [latestVersion, setLatestVersion] = createSignal<string>();
+  const [releaseUrl, setReleaseUrl] = createSignal<string>();
+  const [useChromeWebStore, setUseChromeWebStore] = createSignal(false);
   let requestId = '';
   let scrollArea: HTMLDivElement | undefined;
   let stickToBottom = true;
@@ -95,9 +106,9 @@ export function createPanelController(): PanelController {
   };
 
   const syncContext = async () => {
-    if (extractContext().id !== context().id) { void refresh(); return; }
+    if (extractContext().id !== context().id) { void refresh().catch(() => undefined); return; }
     const next = await extractContextWithEditor();
-    if (next.id !== context().id) { void refresh(); return; }
+    if (next.id !== context().id) { void refresh().catch(() => undefined); return; }
     setContext(next);
   };
 
@@ -146,7 +157,9 @@ export function createPanelController(): PanelController {
     const value = text.trim();
     if (!value || busy()) return;
     const settings = await getSettings();
-    if (!settings.apiKey.trim()) { setError(`尚未设置${settings.provider === 'qwen' ? '千问' : 'DeepSeek'} API Key。请点击浏览器工具栏中的 LeetCopilot 图标完成设置。`); return; }
+    const account = getActiveAccount(settings);
+    const providerLabel = getProviderPreset(settings.activeProviderId, account)?.label ?? settings.activeProviderId;
+    if (!account?.apiKey.trim()) { setError(`尚未设置${providerLabel} API Key。请点击浏览器工具栏中的 LeetCopilot 图标完成设置。`); return; }
     batch(() => { setError(''); setErrorLogs([]); setErrorLogId(); setShowErrorLogs(false); setReceivedToken(false); });
     stickToBottom = true;
     requestId = uid();
@@ -223,10 +236,32 @@ export function createPanelController(): PanelController {
     setShowErrorLogs(true);
   };
 
+  const openRelease = async () => {
+    try {
+      await chrome.runtime.sendMessage({ type: 'open-release', url: releaseUrl() });
+    } catch {
+      // 扩展重载后旧页面上下文可能失效，不让点击产生未捕获异常。
+    }
+  };
+
   onMount(() => {
-    void refresh();
+    void refresh().catch(() => {
+      // 扩展重载期间 storage 上下文可能失效，等待页面刷新即可恢复。
+    });
+    void (async () => {
+      try {
+        const response = await chrome.runtime.sendMessage({ type: 'check-version' }) as VersionCheckResponse;
+        if (!response?.ok || !response.updateAvailable) return;
+        setUpdateAvailable(true);
+        setLatestVersion(response.latestVersion);
+        setReleaseUrl(response.updateUrl ?? response.releaseUrl);
+        setUseChromeWebStore(response.useChromeWebStore === true);
+      } catch {
+        // Version checks are best-effort and must not block the panel.
+      }
+    })();
     void getSettings().then((settings) => {
-      setHasApiKey(Object.values(settings.apiKeys).some((key) => key.trim()));
+      setHasApiKey(Object.values(settings.accounts).some((account) => account.apiKey.trim()));
       setTheme(settings.theme);
       setHideNativeLeet(settings.hideNativeLeet);
       syncNativeLeet(settings.hideNativeLeet);
@@ -234,7 +269,7 @@ export function createPanelController(): PanelController {
     const storageListener = (changes: { [key: string]: chrome.storage.StorageChange }, area: string) => {
       if (area !== 'local' || !changes['leet-copilot:settings']) return;
       void getSettings().then((settings) => {
-        setHasApiKey(Object.values(settings.apiKeys).some((key) => key.trim()));
+        setHasApiKey(Object.values(settings.accounts).some((account) => account.apiKey.trim()));
         if (settings.hideNativeLeet !== hideNativeLeet()) nativeRestoreRequested = !settings.hideNativeLeet;
         setTheme(settings.theme);
         setHideNativeLeet(settings.hideNativeLeet);
@@ -283,10 +318,10 @@ export function createPanelController(): PanelController {
   });
 
   return {
-    context, messages, draft, open, busy, error, errorLogs, errorLogId, showErrorLogs, receivedToken, width, theme, hasApiKey,
+    context, messages, draft, open, busy, error, errorLogs, errorLogId, showErrorLogs, receivedToken, width, theme, hasApiKey, updateAvailable, latestVersion, useChromeWebStore,
     setDraft, setOpen, setShowErrorLogs, clearError, refresh, send, cancel, applyCode, resize,
     copy: async (text) => { await navigator.clipboard.writeText(text); },
-    reset, openErrorLogs,
+    reset, openErrorLogs, openRelease,
     onConversationScroll: (event) => {
       const target = event.currentTarget as HTMLDivElement;
       stickToBottom = target.scrollHeight - target.scrollTop - target.clientHeight < 32;

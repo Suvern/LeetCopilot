@@ -1,31 +1,26 @@
 import { PROVIDERS } from './providers';
-import type { Provider, Settings } from './domain';
+import type { Provider, ProviderAccount, Settings } from './domain';
+
+const BUILTIN_PROVIDER_IDS = Object.keys(PROVIDERS);
+
+const DEFAULT_ACCOUNTS = Object.fromEntries(BUILTIN_PROVIDER_IDS.map((providerId) => [providerId, {
+  providerId,
+  apiKey: '',
+  model: PROVIDERS[providerId].defaultModel,
+}])) as Record<string, ProviderAccount>;
 
 export const DEFAULT_SETTINGS: Settings = {
+  schemaVersion: 2,
   provider: 'deepseek',
   apiKey: '',
-  apiKeys: { deepseek: '', qwen: '' },
+  apiKeys: Object.fromEntries(BUILTIN_PROVIDER_IDS.map((providerId) => [providerId, ''])) as Record<Provider, string>,
   model: PROVIDERS.deepseek.defaultModel,
+  activeProviderId: 'deepseek',
+  accounts: DEFAULT_ACCOUNTS,
   theme: 'auto',
   hideNativeLeet: false,
 };
 
-export type StoredSettings = Omit<Partial<Settings>, 'apiKeys'> & {
-  apiKey?: string;
-  apiKeys?: Partial<Record<Provider, string>>;
-};
-
-export function normalizeSettings(stored?: StoredSettings): Settings {
-  const provider: Provider = stored?.provider === 'qwen' ? 'qwen' : 'deepseek';
-  const apiKeys = { ...DEFAULT_SETTINGS.apiKeys, ...(stored?.apiKeys ?? {}) };
-  if (!stored?.apiKeys && stored?.apiKey) apiKeys[provider] = stored.apiKey;
-
-  return {
-    ...DEFAULT_SETTINGS,
-    ...stored,
-    provider,
-    apiKeys,
-    apiKey: stored?.apiKey ?? apiKeys[provider],
-    model: stored?.model || PROVIDERS[provider].defaultModel,
-  };
+export function getActiveAccount(settings: Settings): ProviderAccount | undefined {
+  return settings.accounts[settings.activeProviderId];
 }

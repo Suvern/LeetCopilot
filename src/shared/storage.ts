@@ -1,14 +1,35 @@
 import type { ChatMessage, ErrorLog, Settings } from './domain';
-import { normalizeSettings, type StoredSettings } from './settings';
+import { migrateSettings, type StoredSettings } from './settings-migration';
+import { getProviderPreset } from './providers';
 const settingsKey = 'leet-copilot:settings';
 const errorLogsKey = 'leet-copilot:error-logs';
 const historyKey = (id: string) => `leet-copilot:history:${id}`;
 export async function getSettings(): Promise<Settings> {
   const values = await chrome.storage.local.get(settingsKey);
-  return normalizeSettings(values[settingsKey] as StoredSettings | undefined);
+  return migrateSettings(values[settingsKey] as StoredSettings | undefined);
 }
 export async function saveSettings(settings: Settings) {
-  await chrome.storage.local.set({ [settingsKey]: { ...settings, apiKey: settings.apiKey.trim(), apiKeys: { ...settings.apiKeys, [settings.provider]: settings.apiKey.trim() } } });
+  const normalized = migrateSettings(settings);
+  // The active account is authoritative. The legacy `provider` field is kept
+  // for backwards compatibility, but must not override a current selection.
+  const providerId = normalized.activeProviderId;
+  const account = normalized.accounts[providerId];
+  const apiKey = normalized.apiKey.trim();
+  const model = normalized.model.trim() || account?.model || getProviderPreset(providerId)?.defaultModel || '';
+  const accounts = account ? {
+    ...normalized.accounts,
+    [providerId]: { ...account, providerId, apiKey, model },
+  } : normalized.accounts;
+  await chrome.storage.local.set({
+    [settingsKey]: {
+      ...normalized,
+      activeProviderId: providerId,
+      apiKey,
+      model,
+      accounts,
+      apiKeys: { ...normalized.apiKeys, [providerId]: apiKey },
+    },
+  });
 }
 export async function savePreferences(preferences: Pick<Settings, 'theme' | 'hideNativeLeet'>) {
   const current = await getSettings();

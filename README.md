@@ -1,24 +1,46 @@
-# LeetCopilot
+<p align="center"><a href="https://github.com/Suvern/LeetCopilot" target="_blank" rel="noreferrer noopener"><img width="180" alt="LeetCopilot logo" src="https://raw.githubusercontent.com/Suvern/LeetCopilot/main/public/leetcopilot-logo.png"></a></p>
 
-LeetCopilot 是一个免费、开源的 LeetCode AI 辅助工具
+<h2 align="center">LeetCopilot</h2>
 
-只需要填入你的 API Key 即可工作，现支持 [DeepSeek](https://platform.deepseek.com/) 和 [千问](https://www.qianwenai.com/)
+<p align="center">LeetCopilot 是一个 <strong>免费、</strong> <strong>开源 </strong> 的 LeetCode AI 辅助工具</p>
+
+只需要填入你的 API Key，即可在 AI 辅助下高效刷题
 
 > 暂时仅支持 `leetcode.cn` 中文站
 ## 功能
 
 - 基于当前题目、编程语言和当前代码提问，助手栏会流式输出思路和解法
 - 隐藏 LeetCode 需要付费的 "Leet" 助手
-- 支持深色模式
+- 支持切换浅/深色模式
+- 支持保存多个 API 平台并能随时切换
+- 支持自定义兼容 `OpenAI Chat Completions` 或 `Anthropic Messages` 的平台
 
 LeetCopilot 没有后端和服务器，在弹窗中填写 API 密钥后，密钥会保存在 Chrome 的扩展本地存储中，无需担心泄露
+
+## 支持平台
+
+- [<img src="https://unpkg.com/@lobehub/icons-static-webp@latest/light/deepseek-color.webp" alt="DeepSeek" height="36" align="center">](https://platform.deepseek.com/) DeepSeek
+- [<img src="https://unpkg.com/@lobehub/icons-static-webp@latest/light/qwen-color.webp" alt="千问" height="36" align="center">](https://www.qianwenai.com/) 千问
+- [<img src="https://unpkg.com/@lobehub/icons-static-webp@latest/light/openai.webp" alt="OpenAI" height="36" align="center">](https://platform.openai.com/) OpenAI
+- [<img src="https://unpkg.com/@lobehub/icons-static-webp@latest/light/anthropic.webp" alt="Anthropic" height="36" align="center">](https://console.anthropic.com/) Anthropic
+- [<img src="https://unpkg.com/@lobehub/icons-static-webp@latest/light/zhipu-color.webp" alt="智谱 GLM（BigModel）" height="36" align="center">](https://open.bigmodel.cn/) 智谱 GLM（BigModel）
+- [<img src="https://unpkg.com/@lobehub/icons-static-webp@latest/light/openrouter-color.webp" alt="OpenRouter" height="36" align="center">](https://openrouter.ai/) OpenRouter
+- [<img src="https://unpkg.com/@lobehub/icons-static-webp@latest/light/moonshot.webp" alt="Kimi" height="36" align="center">](https://platform.kimi.com/) Kimi
+- [<img src="https://unpkg.com/@lobehub/icons-static-webp@latest/light/minimax-color.webp" alt="MiniMax CN" height="36" align="center">](https://platform.minimaxi.com/) MiniMax CN
+- [<img src="https://unpkg.com/@lobehub/icons-static-webp@latest/light/minimax-color.webp" alt="MiniMax" height="36" align="center">](https://platform.minimax.io/) MiniMax
+- **自定义平台**（提供 Base URL、API Key 和平台名称）
+
+## 支持语言
+
+支持 `C`、`C++`、`Java`、`JavaScript` 和 `Python`
+
 
 ## 预览
 
 | 工作区 | 设置 |
 | --- | --- |
-| <img src="docs/media/workspace.png" alt="LeetCopilot 在 LeetCode 编辑器旁的工作区" width="640" /> | <img src="docs/media/settings.png" alt="LeetCopilot 设置弹窗" width="320" /> |
-| <img src="docs/media/assistant-workflow.gif" alt="LeetCopilot 助手工作流程" width="640" /> | <img src="docs/media/popup-settings.gif" alt="LeetCopilot 设置流程" width="320" /> |
+| <img src="docs/media/workspace.png" alt="LeetCopilot 在 LeetCode 编辑器旁的工作区" height="480" /> | <img src="docs/media/settings.png" alt="LeetCopilot 设置弹窗" height="480" /> |
+| <img src="docs/media/assistant-workflow.gif" alt="LeetCopilot 助手工作流程" height="480" /> | <img src="docs/media/popup-settings.gif" alt="LeetCopilot 设置流程" height="480" /> |
 
 ## 安装
 
@@ -60,7 +82,9 @@ pnpm run package
 
 ## 发布
 
-准备新版本时，先用命令同步 `package.json` 和 Chrome Manifest 中的版本号：
+发布仅接受稳定的三段版本：tag 使用 `vX.Y.Z`，而 `package.json`、Chrome Manifest 和 zip 文件名使用不含 `v` 的 `X.Y.Z`
+
+准备新版本时，先用命令同步两个版本文件：
 
 ```bash
 pnpm release 0.1.0
@@ -77,11 +101,7 @@ git tag v0.1.0
 git push origin main v0.1.0
 ```
 
-推送 `v*` tag 后，GitHub Actions 会执行检查、构建并创建 GitHub Release。
-
-## 支持语言
-
-支持 `C`、`C++`、`Java`、`JavaScript` 和 `Python`
+推送符合 `vX.Y.Z` 的稳定版本 tag 后，GitHub Actions 会校验 tag 与两个版本文件一致，构建并创建对应的 GitHub Release，最终文件名为 `LeetCopilot-X.Y.Z.zip`
 
 ## TODO
 

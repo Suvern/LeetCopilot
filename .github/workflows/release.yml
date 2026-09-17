@@ -20,11 +20,26 @@ jobs:
       - run: pnpm run typecheck
       - run: pnpm test
       - run: pnpm run lint
-      - name: Verify tag version
-        run: test "${GITHUB_REF_NAME#v}" = "$(node -p "require('./package.json').version")"
-      - run: pnpm run package
+      - name: Resolve tag version
+        id: version
+        shell: bash
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          if [[ ! "$GITHUB_REF_NAME" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "Tag must use the stable vX.Y.Z format: $GITHUB_REF_NAME" >&2
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Verify source version
+        env:
+          LEETCOPILOT_RELEASE_VERSION: ${{ steps.version.outputs.version }}
+        run: pnpm run check:version
+      - name: Build release package
+        env:
+          LEETCOPILOT_RELEASE_VERSION: ${{ steps.version.outputs.version }}
+        run: pnpm run package
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: release/LeetCopilot-*.zip
+          files: release/LeetCopilot-${{ steps.version.outputs.version }}.zip
           generate_release_notes: true
