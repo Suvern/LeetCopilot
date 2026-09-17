@@ -54,22 +54,25 @@ async function getChromeWebStoreUrl() {
 
 async function checkVersion(): Promise<VersionCheckResponse> {
   const currentVersion = chrome.runtime.getManifest().version
+
+  // 测试口子 1：取消下一行注释，模拟 GitHub 更新提示。
+  // const testResponse: VersionCheckResponse | undefined = { ok: true, updateAvailable: true, currentVersion, latestVersion: '9.9.9', releaseUrl: RELEASES_PAGE_URL, updateUrl: RELEASES_PAGE_URL }
+  // 测试口子 2：取消下一行注释，模拟 Chrome 商店更新提示（请替换为真实商店链接）。
+  // const testResponse: VersionCheckResponse | undefined = { ok: true, updateAvailable: true, currentVersion, latestVersion: '9.9.9', releaseUrl: RELEASES_PAGE_URL, updateUrl: 'https://chromewebstore.google.com/detail/your-extension-id', useChromeWebStore: true }
+  const testResponse: VersionCheckResponse | undefined = undefined
+  if (testResponse) return testResponse
+
   try {
     const response = await fetch(RELEASES_API_URL, { headers: { Accept: 'application/vnd.github+json' } })
     if (!response.ok) return { ok: true, updateAvailable: false, currentVersion }
     const release = await response.json() as { tag_name?: unknown; html_url?: unknown; draft?: unknown; prerelease?: unknown }
-    const latestVersion = typeof release.tag_name === 'string' ? release.tag_name : undefined
+    if (typeof release.tag_name !== 'string' || release.draft === true || release.prerelease === true) return { ok: true, updateAvailable: false, currentVersion }
+    const latestVersion = release.tag_name
     const releaseUrl = typeof release.html_url === 'string' ? release.html_url : RELEASES_PAGE_URL
-    if (!latestVersion || release.draft === true || release.prerelease === true) return { ok: true, updateAvailable: false, currentVersion }
     const updateAvailable = isNewerVersion(latestVersion, currentVersion)
     if (!updateAvailable || await isNormalInstall()) return { ok: true, updateAvailable, currentVersion, latestVersion, releaseUrl }
     const chromeWebStoreUrl = await getChromeWebStoreUrl()
     return { ok: true, updateAvailable, currentVersion, latestVersion, releaseUrl, updateUrl: chromeWebStoreUrl ?? releaseUrl, useChromeWebStore: Boolean(chromeWebStoreUrl) }
-
-    // 测试口子 1：取消下一行注释，模拟 GitHub 更新提示。
-    // return { ok: true, updateAvailable: true, currentVersion, latestVersion: '9.9.9', releaseUrl: RELEASES_PAGE_URL, updateUrl: RELEASES_PAGE_URL }
-    // 测试口子 2：取消下一行注释，模拟 Chrome 商店更新提示（请替换为真实商店链接）。
-    // return { ok: true, updateAvailable: true, currentVersion, latestVersion: '9.9.9', releaseUrl: RELEASES_PAGE_URL, updateUrl: 'https://chromewebstore.google.com/detail/your-extension-id', useChromeWebStore: true }
   } catch {
     return { ok: true, updateAvailable: false, currentVersion }
   }

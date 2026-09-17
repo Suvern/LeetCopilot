@@ -106,9 +106,9 @@ export function createPanelController(): PanelController {
   };
 
   const syncContext = async () => {
-    if (extractContext().id !== context().id) { void refresh(); return; }
+    if (extractContext().id !== context().id) { void refresh().catch(() => undefined); return; }
     const next = await extractContextWithEditor();
-    if (next.id !== context().id) { void refresh(); return; }
+    if (next.id !== context().id) { void refresh().catch(() => undefined); return; }
     setContext(next);
   };
 
@@ -237,11 +237,17 @@ export function createPanelController(): PanelController {
   };
 
   const openRelease = async () => {
-    await chrome.runtime.sendMessage({ type: 'open-release', url: releaseUrl() });
+    try {
+      await chrome.runtime.sendMessage({ type: 'open-release', url: releaseUrl() });
+    } catch {
+      // 扩展重载后旧页面上下文可能失效，不让点击产生未捕获异常。
+    }
   };
 
   onMount(() => {
-    void refresh();
+    void refresh().catch(() => {
+      // 扩展重载期间 storage 上下文可能失效，等待页面刷新即可恢复。
+    });
     void (async () => {
       try {
         const response = await chrome.runtime.sendMessage({ type: 'check-version' }) as VersionCheckResponse;
