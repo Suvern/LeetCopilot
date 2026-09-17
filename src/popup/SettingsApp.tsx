@@ -8,7 +8,7 @@ import { Portal } from 'solid-js/web';
 import { LeetCopilotLogo } from '../shared/Logo';
 import type { Provider } from '../shared/domain';
 import { createSettingsController } from './settings-controller';
-import './style.css';
+import './style.less';
 
 export function SettingsApp() {
   const controller = createSettingsController();

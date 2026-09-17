@@ -8,7 +8,7 @@ import { PanelHeader } from './components/panel-header';
 import { SetupOverlay } from './components/setup-overlay';
 import { ShortcutRow } from './components/shortcut-row';
 import { host } from './layout';
-import './style.css';
+import './style.less';
 
 function App() {
   const panel = createPanelController();
